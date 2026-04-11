@@ -16,6 +16,8 @@
     --accent: #c8392b;
     --muted: #7a7060;
     --rule: #c8bfaa;
+    --morning: #e8a020;
+    --evening: #3a5f8a;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,12 +27,12 @@
     color: var(--ink);
     font-family: 'DM Sans', sans-serif;
     min-height: 100vh;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Setup screen */
+  /* ── SETUP ── */
   #setup-screen {
-    display: flex;
+    display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -52,7 +54,6 @@
     font-size: 38px;
     font-weight: 700;
     color: var(--ink);
-    margin-bottom: 4px;
   }
 
   .setup-rule {
@@ -68,7 +69,7 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     align-self: flex-start;
     width: 100%;
   }
@@ -84,7 +85,7 @@
     color: var(--ink);
     outline: none;
     transition: border-color 0.2s;
-    margin-bottom: 24px;
+    margin-bottom: 8px;
   }
 
   .setup-input:focus { border-color: var(--accent); }
@@ -92,10 +93,9 @@
   .setup-hint {
     font-size: 12px;
     color: var(--muted);
-    text-align: center;
-    margin-top: -16px;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     line-height: 1.6;
+    align-self: flex-start;
   }
 
   .btn-primary {
@@ -108,22 +108,21 @@
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 500;
-    letter-spacing: 0.05em;
     cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
+    transition: opacity 0.2s;
     -webkit-tap-highlight-color: transparent;
+    margin-top: 8px;
   }
 
-  .btn-primary:active { opacity: 0.8; transform: scale(0.98); }
+  .btn-primary:active { opacity: 0.8; }
 
-  /* Main screen */
-  #main-screen { display: none; }
-
+  /* ── MASTHEAD ── */
   .masthead {
     background: var(--ink);
     color: var(--paper);
     padding: 20px 24px 18px;
     padding-top: calc(20px + env(safe-area-inset-top));
+    position: relative;
   }
 
   .masthead-eyebrow {
@@ -138,12 +137,9 @@
     font-family: 'Playfair Display', serif;
     font-size: 32px;
     font-weight: 700;
-    letter-spacing: -0.01em;
   }
 
-  .masthead-title span {
-    color: var(--accent);
-  }
+  .masthead-title span { color: var(--accent); }
 
   .masthead-date {
     font-size: 11px;
@@ -152,49 +148,51 @@
     font-weight: 300;
   }
 
+  .settings-btn {
+    position: absolute;
+    top: calc(20px + env(safe-area-inset-top));
+    right: 20px;
+    background: none;
+    border: none;
+    color: var(--rule);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── TRIGGER BUTTONS ── */
   .trigger-section {
-    padding: 20px 20px 0;
+    padding: 16px 16px 0;
   }
 
   .trigger-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    margin-bottom: 10px;
   }
 
   .trigger-btn {
     background: var(--cream);
     border: 1.5px solid var(--rule);
     border-radius: 12px;
-    padding: 16px 12px;
+    padding: 14px 12px;
     text-align: center;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: all 0.15s;
-    position: relative;
-    overflow: hidden;
   }
 
   .trigger-btn:active { transform: scale(0.97); }
+  .trigger-btn.loading { opacity: 0.5; pointer-events: none; }
+  .trigger-btn.morning { border-color: var(--morning); }
+  .trigger-btn.evening { border-color: var(--evening); }
 
-  .trigger-btn.morning { border-color: #e8a020; }
-  .trigger-btn.evening { border-color: #3a5f8a; }
-
-  .trigger-btn.loading {
-    opacity: 0.6;
-    pointer-events: none;
-  }
-
-  .trigger-icon {
-    font-size: 22px;
-    margin-bottom: 4px;
-  }
+  .trigger-icon { font-size: 20px; margin-bottom: 3px; }
 
   .trigger-label {
     font-size: 13px;
     font-weight: 500;
-    color: var(--ink);
     display: block;
   }
 
@@ -206,45 +204,125 @@
   }
 
   .trigger-btn.morning .trigger-label { color: #b07010; }
-  .trigger-btn.evening .trigger-label { color: #3a5f8a; }
+  .trigger-btn.evening .trigger-label { color: var(--evening); }
 
-  /* Results area */
-  .results-area {
-    padding: 16px 20px 100px;
+  /* ── SPINNER ── */
+  .spinner-wrap {
+    text-align: center;
+    padding: 30px 20px;
+    display: none;
+  }
+
+  .spinner-wrap.visible { display: block; }
+
+  .spinner {
+    width: 26px;
+    height: 26px;
+    border: 2.5px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .spinner-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── ERROR ── */
+  .error-box {
+    background: #fff0ee;
+    border: 1px solid #f0c0b8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 16px 0;
+    font-size: 13px;
+    color: #a03020;
+    line-height: 1.5;
+    display: none;
+  }
+
+  .error-box.visible { display: block; }
+
+  /* ── DIGEST SECTIONS ── */
+  .digest-section {
+    margin: 16px 0 0;
+  }
+
+  .digest-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 0 16px 10px;
+    border-bottom: 1.5px solid var(--rule);
+    margin: 0 16px 12px;
+  }
+
+  .digest-header-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .digest-header-title.morning { color: #b07010; }
+  .digest-header-title.evening { color: var(--evening); }
+
+  .digest-timestamp {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .digest-date-pill {
+    display: inline-block;
+    background: var(--cream);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── CARDS ── */
+  .cards-wrap {
+    padding: 0 16px;
   }
 
   .result-card {
     background: white;
     border-radius: 14px;
     overflow: hidden;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.07);
     animation: slideUp 0.3s ease forwards;
     opacity: 0;
   }
 
+  .result-card.restored { animation: none; opacity: 1; }
+
   @keyframes slideUp {
-    from { opacity: 0; transform: translateY(12px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
-
-  .result-card:nth-child(1) { animation-delay: 0.05s; }
-  .result-card:nth-child(2) { animation-delay: 0.12s; }
-  .result-card:nth-child(3) { animation-delay: 0.19s; }
-  .result-card:nth-child(4) { animation-delay: 0.26s; }
 
   .card-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 14px 10px;
+    padding: 11px 14px 9px;
     border-bottom: 1px solid #f0ebe0;
   }
 
   .card-badge {
     font-size: 9px;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     padding: 3px 8px;
     border-radius: 20px;
@@ -268,13 +346,31 @@
     font-size: 16px;
     line-height: 1.4;
     color: var(--ink);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
 
-  .card-source {
-    font-size: 11px;
+  .card-summary {
+    font-size: 13px;
+    line-height: 1.65;
+    color: #3a3530;
+    margin-bottom: 12px;
+  }
+
+  .card-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+
+  .source-chip {
+    background: var(--cream);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 3px 9px;
+    font-size: 10px;
     color: var(--muted);
-    margin-bottom: 10px;
+    font-weight: 500;
   }
 
   .card-link {
@@ -285,110 +381,52 @@
     font-weight: 500;
     color: var(--accent);
     text-decoration: none;
-    letter-spacing: 0.03em;
   }
 
-  /* Copy button */
+  /* ── COPY BARS ── */
   .copy-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0; right: 0;
-    background: white;
-    border-top: 1px solid var(--rule);
-    padding: 12px 20px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
-    display: none;
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    margin: 0 0 4px;
   }
-
-  .copy-bar.visible { display: block; }
 
   .btn-copy {
-    width: 100%;
-    background: var(--accent);
-    color: white;
+    flex: 1;
     border: none;
     border-radius: 10px;
-    padding: 15px;
+    padding: 13px 10px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: opacity 0.2s;
   }
 
-  .btn-copy:active { opacity: 0.85; }
+  .btn-copy:active { opacity: 0.8; }
+  .btn-copy.morning-copy { background: #fff3d6; color: #b07010; }
+  .btn-copy.evening-copy { background: #e6f0f8; color: var(--evening); }
 
-  /* Loading spinner */
-  .spinner-wrap {
+  /* ── BOTTOM SPACER ── */
+  .bottom-spacer { height: 40px; }
+
+  /* ── NO UPDATE ── */
+  .no-update-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px;
     text-align: center;
-    padding: 40px 20px;
-    display: none;
+    margin: 0 16px 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
   }
 
-  .spinner-wrap.visible { display: block; }
-
-  .spinner {
-    width: 28px;
-    height: 28px;
-    border: 2.5px solid var(--rule);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 14px;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .spinner-label {
-    font-size: 13px;
-    color: var(--muted);
+  .no-update-card p {
+    font-family: 'Playfair Display', serif;
     font-style: italic;
-  }
-
-  /* Error */
-  .error-box {
-    background: #fff0ee;
-    border: 1px solid #f0c0b8;
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin: 16px 20px 0;
-    font-size: 13px;
-    color: #a03020;
-    line-height: 1.5;
-    display: none;
-  }
-
-  .error-box.visible { display: block; }
-
-  /* Settings gear */
-  .settings-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: none;
-    border: none;
-    color: var(--rule);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 4px;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .masthead { position: relative; }
-
-  /* Edition label */
-  .edition-label {
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--muted);
-    padding: 14px 20px 0;
-    font-weight: 500;
-  }
-
-  .edition-label span {
-    color: var(--accent);
+    font-size: 14px;
+    line-height: 1.6;
   }
 </style>
 </head>
@@ -397,31 +435,37 @@
 <!-- SETUP SCREEN -->
 <div id="setup-screen">
   <p class="setup-logo">Your morning briefing</p>
-  <h1 class="setup-title">Daily Pulse</h1>
+  <h1 class="setup-title">Daily <span style="color:var(--accent)">Pulse</span></h1>
   <div class="setup-rule"></div>
+
+  <p class="setup-label">NewsAPI Key</p>
+  <input type="password" id="newsapi-key-input" class="setup-input" placeholder="Paste your NewsAPI key" autocomplete="off" spellcheck="false">
+  <p class="setup-hint">Get a free key at newsapi.org</p>
+
   <p class="setup-label">Gemini API Key</p>
-  <input type="password" id="api-key-input" class="setup-input" placeholder="Paste your key here" autocomplete="off" autocorrect="off" spellcheck="false">
-  <p class="setup-hint">Your key is saved only on this device.<br>It never leaves your phone.</p>
-  <button class="btn-primary" onclick="saveKey()">Save & Open Daily Pulse</button>
+  <input type="password" id="gemini-key-input" class="setup-input" placeholder="Paste your Gemini key" autocomplete="off" spellcheck="false">
+  <p class="setup-hint">Get a key at aistudio.google.com</p>
+
+  <button class="btn-primary" onclick="saveKeys()">Save & Open Daily Pulse</button>
 </div>
 
 <!-- MAIN SCREEN -->
-<div id="main-screen">
+<div id="main-screen" style="display:none">
   <div class="masthead">
     <p class="masthead-eyebrow">Hong Kong Edition</p>
-    <h1 class="masthead-title">Daily<span> Pulse</span></h1>
+    <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-date" id="today-date"></p>
-    <button class="settings-btn" onclick="showSetup()" title="Settings">⚙︎</button>
+    <button class="settings-btn" onclick="showSetup()">⚙︎</button>
   </div>
 
   <div class="trigger-section">
     <div class="trigger-row">
-      <div class="trigger-btn morning" onclick="runDigest('morning')" id="btn-morning">
+      <div class="trigger-btn morning" id="btn-morning" onclick="runDigest('morning')">
         <div class="trigger-icon">☀️</div>
         <span class="trigger-label">Morning</span>
-        <span class="trigger-sub">2 intl · 2 local</span>
+        <span class="trigger-sub">3 intl · 3 local</span>
       </div>
-      <div class="trigger-btn evening" onclick="runDigest('evening')" id="btn-evening">
+      <div class="trigger-btn evening" id="btn-evening" onclick="runDigest('evening')">
         <div class="trigger-icon">🌙</div>
         <span class="trigger-label">Evening</span>
         <span class="trigger-sub">1 intl · 1 local</span>
@@ -431,79 +475,126 @@
 
   <div class="spinner-wrap" id="spinner">
     <div class="spinner"></div>
-    <p class="spinner-label">Scanning sources…</p>
+    <p class="spinner-label" id="spinner-label">Fetching live headlines…</p>
   </div>
 
   <div class="error-box" id="error-box"></div>
 
-  <div class="edition-label" id="edition-label" style="display:none">
-    <span id="edition-text"></span> Edition · <span id="edition-time"></span>
+  <!-- Morning digest -->
+  <div id="morning-section" style="display:none">
+    <div class="digest-section">
+      <div class="digest-header">
+        <span class="digest-header-title morning">☀️ Morning</span>
+        <span class="digest-date-pill" id="morning-date-pill"></span>
+        <span class="digest-timestamp" id="morning-timestamp"></span>
+      </div>
+      <div class="cards-wrap" id="morning-cards"></div>
+      <div class="copy-bar">
+        <button class="btn-copy morning-copy" onclick="copyDigest('morning')">Copy Morning to Capacities</button>
+      </div>
+    </div>
   </div>
 
-  <div class="results-area" id="results-area"></div>
-
-  <div class="copy-bar" id="copy-bar">
-    <button class="btn-copy" onclick="copyToClipboard()">Copy to Capacities</button>
+  <!-- Evening digest -->
+  <div id="evening-section" style="display:none">
+    <div class="digest-section">
+      <div class="digest-header">
+        <span class="digest-header-title evening">🌙 Evening</span>
+        <span class="digest-date-pill" id="evening-date-pill"></span>
+        <span class="digest-timestamp" id="evening-timestamp"></span>
+      </div>
+      <div class="cards-wrap" id="evening-cards"></div>
+      <div class="copy-bar">
+        <button class="btn-copy evening-copy" onclick="copyDigest('evening')">Copy Evening to Capacities</button>
+      </div>
+    </div>
   </div>
+
+  <div class="bottom-spacer"></div>
 </div>
 
 <script>
-const MORNING_PROMPT = `You are Daily Pulse, a concise news digest for a Hong Kong reader.
+// ── SOURCES ──
+const INTL_SOURCES = ['reuters','bbc-news','bloomberg','the-new-york-times','cnn','the-wall-street-journal','cnbc','fox-news'];
+const INTL_LABELS  = ['Reuters','BBC','Bloomberg','NYT','CNN','WSJ','CNBC','Fox News'];
 
-Search and identify today's top news headlines from these international sources in order: Reuters, BBC News, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News. Stop checking once a headline is confirmed across 3 sources.
+// ── PROMPTS ──
+function buildPrompt(type, articles, morningHeadlines) {
+  const articleText = articles.map((a, i) =>
+    `[${i+1}] SOURCE: ${a.source} | POSITION: ${a.position} | HEADLINE: ${a.title} | URL: ${a.url}`
+  ).join('\n');
 
-Then search these local HK sources in order: SCMP, RTHK, HKET, Ming Pao, HKT, On.cc. Stop checking once a headline is confirmed across 3 sources.
+  const exclusion = (type === 'evening' && morningHeadlines && morningHeadlines.length)
+    ? `\n\nEXCLUDE any story that overlaps with these morning headlines:\n${morningHeadlines.join('\n')}`
+    : '';
 
-Return EXACTLY this JSON structure, nothing else, no markdown:
+  const count = type === 'morning' ? 3 : 1;
+
+  return `You are Daily Pulse, a news digest for a Hong Kong reader.
+
+Below are live headlines fetched from major international news sources, each tagged with its source and position on that source's homepage.
+
+${articleText}
+
+TASK:
+1. Identify the ${count} most repeated stor${count > 1 ? 'ies' : 'y'} — prioritise stories that appear in the TOP 3 positions across at least 3 sources. Only fall back to top 4 or top 5 positions if nothing qualifies at top 3.
+2. For each qualifying story, write a summary of 100-150 words. If the story is especially significant or complex, you may extend to up to 400 words — use your judgement.
+3. List which sources mentioned it and at what position.${exclusion}
+
+Also identify ${count} local Hong Kong headline${count > 1 ? 's' : ''} using your knowledge (NewsAPI does not cover HK local sources well). Apply the same top-3 logic conceptually. Label these clearly as estimated.
+
+Return ONLY valid JSON, no markdown, no explanation:
 {
   "international": [
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."},
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+    {
+      "headline": "...",
+      "summary": "...",
+      "sources": [{"name": "BBC", "position": 1}, {"name": "CNN", "position": 2}],
+      "url": "https://..."
+    }
   ],
   "local": [
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."},
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+    {
+      "headline": "...",
+      "summary": "...",
+      "sources": [{"name": "SCMP", "position": 1}],
+      "url": "https://...",
+      "estimated": true
+    }
   ]
+}`;
 }
 
-Rules: 2 international headlines, 2 local HK headlines. Each must appear in at least 3 sources. URL must be the single best article. Return only valid JSON.`;
+// ── STATE ──
+let digestStore = { morning: null, evening: null };
+let activeSpinner = null;
 
-const EVENING_PROMPT = `You are Daily Pulse, a concise news digest for a Hong Kong reader.
+// ── INIT ──
+window.addEventListener('load', () => {
+  const nk = localStorage.getItem('dp_newsapi_key');
+  const gk = localStorage.getItem('dp_gemini_key');
+  if (!nk || !gk) {
+    document.getElementById('setup-screen').style.display = 'flex';
+  } else {
+    showMain();
+    restoreDigests();
+  }
+});
 
-Search today's headlines from these international sources in order: Reuters, BBC News, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News. Then these local HK sources: SCMP, RTHK, HKET, Ming Pao, HKT, On.cc.
-
-Find 1 international headline and 1 local HK headline that each appear in at least 3 sources. These must be DIFFERENT from the morning's top stories (focus on new developments from this afternoon/evening).
-
-If no headline meets the 3-source threshold, return: {"no_update": true}
-
-Otherwise return EXACTLY this JSON, nothing else, no markdown:
-{
-  "international": [
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
-  ],
-  "local": [
-    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
-  ]
-}
-
-Return only valid JSON.`;
-
-let lastDigestText = '';
-
-function saveKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key) { alert('Please paste your Gemini API key first.'); return; }
-  localStorage.setItem('dp_gemini_key', key);
+function saveKeys() {
+  const nk = document.getElementById('newsapi-key-input').value.trim();
+  const gk = document.getElementById('gemini-key-input').value.trim();
+  if (!nk || !gk) { alert('Please enter both API keys.'); return; }
+  localStorage.setItem('dp_newsapi_key', nk);
+  localStorage.setItem('dp_gemini_key', gk);
   showMain();
+  restoreDigests();
 }
 
 function showMain() {
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
-  const now = new Date();
-  document.getElementById('today-date').textContent = now.toLocaleDateString('en-HK', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
+  document.getElementById('today-date').textContent = formatDate(new Date());
 }
 
 function showSetup() {
@@ -511,10 +602,235 @@ function showSetup() {
   document.getElementById('setup-screen').style.display = 'flex';
 }
 
-function setLoading(on) {
+// ── RESTORE SAVED DIGESTS ──
+function restoreDigests() {
+  const saved = localStorage.getItem('dp_digests');
+  if (!saved) return;
+  try {
+    digestStore = JSON.parse(saved);
+    if (digestStore.morning) renderSection('morning', digestStore.morning, true);
+    if (digestStore.evening) renderSection('evening', digestStore.evening, true);
+  } catch(e) {}
+}
+
+function saveDigests() {
+  localStorage.setItem('dp_digests', JSON.stringify(digestStore));
+}
+
+// ── RUN DIGEST ──
+async function runDigest(type) {
+  const newsKey = localStorage.getItem('dp_newsapi_key');
+  const gemKey  = localStorage.getItem('dp_gemini_key');
+  if (!newsKey || !gemKey) { showSetup(); return; }
+
+  hideError();
+  setLoading(true, type);
+
+  try {
+    // Step 1: fetch live headlines from NewsAPI
+    updateSpinner('Fetching live headlines…');
+    const articles = await fetchNewsAPI(newsKey);
+
+    // Step 2: send to Gemini for analysis
+    updateSpinner('Analysing headlines…');
+    const morningHeadlines = (type === 'evening' && digestStore.morning)
+      ? digestStore.morning.items.international.map(i => i.headline)
+      : [];
+    const prompt = buildPrompt(type, articles, morningHeadlines);
+    const parsed = await callGemini(gemKey, prompt);
+
+    // Step 3: store and render
+    const record = {
+      items: parsed,
+      fetchedAt: new Date().toISOString()
+    };
+    digestStore[type] = record;
+    saveDigests();
+    setLoading(false);
+    renderSection(type, record, false);
+
+  } catch(e) {
+    setLoading(false);
+    showError('⚠ ' + (e.message || 'Something went wrong. Please try again.'));
+  }
+}
+
+// ── NEWSAPI FETCH ──
+async function fetchNewsAPI(key) {
+  const articles = [];
+
+  for (let i = 0; i < INTL_SOURCES.length; i++) {
+    const src = INTL_SOURCES[i];
+    const label = INTL_LABELS[i];
+    try {
+      const res = await fetch(
+        `https://newsapi.org/v2/top-headlines?sources=${src}&pageSize=5&apiKey=${key}`
+      );
+      const data = await res.json();
+      if (data.articles) {
+        data.articles.forEach((a, pos) => {
+          articles.push({
+            source: label,
+            position: pos + 1,
+            title: a.title || '',
+            url: a.url || ''
+          });
+        });
+      }
+    } catch(e) {}
+  }
+
+  if (!articles.length) throw new Error('Could not fetch any headlines from NewsAPI. Check your key.');
+  return articles;
+}
+
+// ── GEMINI CALL ──
+async function callGemini(key, prompt) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 4000,
+          responseMimeType: 'application/json'
+        }
+      })
+    }
+  );
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || 'Gemini API error.');
+
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  let clean = raw.replace(/```json|```/gi, '').trim();
+  const jsonMatch = clean.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Could not parse response. Please try again.');
+  return JSON.parse(jsonMatch[0]);
+}
+
+// ── RENDER ──
+function renderSection(type, record, restored) {
+  const section = document.getElementById(`${type}-section`);
+  const cardsWrap = document.getElementById(`${type}-cards`);
+  const datePill = document.getElementById(`${type}-date-pill`);
+  const timestamp = document.getElementById(`${type}-timestamp`);
+
+  const fetchedAt = new Date(record.fetchedAt);
+  datePill.textContent = formatDate(fetchedAt);
+  timestamp.textContent = formatTime(fetchedAt);
+
+  cardsWrap.innerHTML = '';
+
+  const intl = record.items.international || [];
+  const local = record.items.local || [];
+
+  if (record.items.no_update) {
+    cardsWrap.innerHTML = `<div class="no-update-card"><p>No important update this evening.<br>No headline reached the top-3 threshold.</p></div>`;
+  } else {
+    intl.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'intl', i + 1, restored)));
+    local.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'local', i + 1, restored)));
+  }
+
+  section.style.display = 'block';
+}
+
+function makeCard(item, type, num, restored) {
+  const card = document.createElement('div');
+  card.className = restored ? 'result-card restored' : 'result-card';
+
+  const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
+  const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
+
+  const sourceChips = (item.sources || []).map(s => {
+    const pos = s.position ? ` #${s.position}` : '';
+    return `<span class="source-chip">${s.name}${pos}</span>`;
+  }).join('');
+
+  const estimatedNote = item.estimated
+    ? `<p style="font-size:11px;color:var(--muted);margin-bottom:8px;font-style:italic">⚠ Estimated — not from live feed</p>`
+    : '';
+
+  const linkHtml = item.url
+    ? `<a class="card-link" href="${item.url}" target="_blank">Read full article →</a>`
+    : '';
+
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-badge ${badgeClass}">${badgeText}</span>
+      <span class="card-num">${num}</span>
+    </div>
+    <div class="card-body">
+      <p class="card-headline">${item.headline}</p>
+      ${estimatedNote}
+      <p class="card-summary">${item.summary || ''}</p>
+      <div class="card-sources">${sourceChips}</div>
+      ${linkHtml}
+    </div>`;
+  return card;
+}
+
+// ── COPY ──
+function copyDigest(type) {
+  const record = digestStore[type];
+  if (!record) return;
+
+  const label = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
+  const fetchedAt = new Date(record.fetchedAt);
+  let text = `${label}\n${formatDate(fetchedAt)} · ${formatTime(fetchedAt)}\n\n`;
+
+  const intl = record.items.international || [];
+  const local = record.items.local || [];
+
+  if (intl.length) {
+    text += '🌍 INTERNATIONAL\n\n';
+    intl.forEach((item, i) => {
+      const sources = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
+      text += `${i+1}. ${item.headline}\n${item.summary || ''}\nSources: ${sources}\n${item.url || ''}\n\n`;
+    });
+  }
+
+  if (local.length) {
+    text += '🇭🇰 LOCAL HK\n\n';
+    local.forEach((item, i) => {
+      const sources = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
+      const est = item.estimated ? ' [estimated]' : '';
+      text += `${i+1}. ${item.headline}${est}\n${item.summary || ''}\nSources: ${sources}\n${item.url || ''}\n\n`;
+    });
+  }
+
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    const btn = document.querySelector(`.btn-copy.${type}-copy`);
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = orig, 2000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text.trim();
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.querySelector(`.btn-copy.${type}-copy`);
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+}
+
+// ── UI HELPERS ──
+function setLoading(on, type) {
   document.getElementById('spinner').className = on ? 'spinner-wrap visible' : 'spinner-wrap';
   document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
   document.getElementById('btn-evening').className = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
+}
+
+function updateSpinner(msg) {
+  document.getElementById('spinner-label').textContent = msg;
 }
 
 function showError(msg) {
@@ -527,156 +843,13 @@ function hideError() {
   document.getElementById('error-box').className = 'error-box';
 }
 
-async function runDigest(type) {
-  const key = localStorage.getItem('dp_gemini_key');
-  if (!key) { showSetup(); return; }
-
-  hideError();
-  document.getElementById('results-area').innerHTML = '';
-  document.getElementById('copy-bar').className = 'copy-bar';
-  document.getElementById('edition-label').style.display = 'none';
-  setLoading(true);
-
-  const prompt = type === 'morning' ? MORNING_PROMPT : EVENING_PROMPT;
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2500, responseMimeType: 'application/json' }
-        })
-      }
-    );
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      const msg = data?.error?.message || 'API error. Check your key in settings.';
-      throw new Error(msg);
-    }
-
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    let clean = raw.replace(/```json|```/gi, '').trim();
-    const jsonMatch = clean.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Bad response: ' + clean.substring(0, 200));
-    clean = jsonMatch[0];
-    const parsed = JSON.parse(clean);
-
-    setLoading(false);
-    renderResults(parsed, type);
-
-  } catch (e) {
-    setLoading(false);
-    showError('⚠ ' + (e.message || 'Something went wrong. Please try again.'));
-  }
+function formatDate(d) {
+  return d.toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 }
 
-function renderResults(data, type) {
-  const area = document.getElementById('results-area');
-  area.innerHTML = '';
-  lastDigestText = '';
-
-  if (data.no_update) {
-    area.innerHTML = `<div class="result-card" style="opacity:1;animation:none;padding:20px 14px;text-align:center">
-      <p style="font-family:'Playfair Display',serif;font-style:italic;color:var(--muted);font-size:15px">No important update this evening.<br>No headline reached 3 sources.</p>
-    </div>`;
-    lastDigestText = 'No important update this evening.';
-    showCopyBar();
-    showEditionLabel(type);
-    return;
-  }
-
-  const intlItems = data.international || [];
-  const localItems = data.local || [];
-  let copyLines = type === 'morning' ? '☀️ MORNING DIGEST\n' : '🌙 EVENING DIGEST\n';
-  copyLines += new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + '\n\n';
-
-  if (intlItems.length) copyLines += '🌍 INTERNATIONAL\n';
-  intlItems.forEach((item, i) => {
-    const card = makeCard(item, 'intl', i + 1);
-    area.appendChild(card);
-    copyLines += `${i+1}. ${item.headline}\n   Sources: ${(item.sources||[]).join(', ')}\n   ${item.url || ''}\n\n`;
-  });
-
-  if (localItems.length) copyLines += '🇭🇰 LOCAL HK\n';
-  localItems.forEach((item, i) => {
-    const card = makeCard(item, 'local', i + 1);
-    area.appendChild(card);
-    copyLines += `${i+1}. ${item.headline}\n   Sources: ${(item.sources||[]).join(', ')}\n   ${item.url || ''}\n\n`;
-  });
-
-  lastDigestText = copyLines.trim();
-  showCopyBar();
-  showEditionLabel(type);
+function formatTime(d) {
+  return d.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' });
 }
-
-function makeCard(item, type, num) {
-  const card = document.createElement('div');
-  card.className = 'result-card';
-  const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
-  const badgeText = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
-  const sources = (item.sources || []).join(' · ');
-  const linkHtml = item.url
-    ? `<a class="card-link" href="${item.url}" target="_blank">Read article →</a>`
-    : '';
-
-  card.innerHTML = `
-    <div class="card-header">
-      <span class="card-badge ${badgeClass}">${badgeText}</span>
-      <span class="card-num">${num}</span>
-    </div>
-    <div class="card-body">
-      <p class="card-headline">${item.headline}</p>
-      <p class="card-source">${sources}</p>
-      ${linkHtml}
-    </div>`;
-  return card;
-}
-
-function showCopyBar() {
-  document.getElementById('copy-bar').className = 'copy-bar visible';
-}
-
-function showEditionLabel(type) {
-  const label = document.getElementById('edition-label');
-  const now = new Date();
-  document.getElementById('edition-text').textContent = type === 'morning' ? '☀️ Morning' : '🌙 Evening';
-  document.getElementById('edition-time').textContent = now.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' });
-  label.style.display = 'block';
-}
-
-async function copyToClipboard() {
-  try {
-    await navigator.clipboard.writeText(lastDigestText);
-    const btn = document.querySelector('.btn-copy');
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = 'Copy to Capacities'; }, 2000);
-  } catch {
-    // Fallback for older Safari
-    const ta = document.createElement('textarea');
-    ta.value = lastDigestText;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    const btn = document.querySelector('.btn-copy');
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = 'Copy to Capacities'; }, 2000);
-  }
-}
-
-// Init
-window.addEventListener('load', () => {
-  const key = localStorage.getItem('dp_gemini_key');
-  if (key) { showMain(); } 
-  else { document.getElementById('setup-screen').style.display = 'flex'; }
-});
 </script>
 </body>
 </html>
