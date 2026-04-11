@@ -44,11 +44,33 @@ function isArticleUrl(url) {
 
 // ── GROUNDING URL EXTRACTION ──
 
+// Extract all grounding chunk URIs (may be Vertex AI redirect URLs)
 function extractGroundingUrls(chunks) {
   return (chunks || [])
     .filter(c => c.web && c.web.uri)
-    .map(c => ({ uri: c.web.uri, title: c.web.title || '' }))
-    .filter(c => isApprovedDomain(c.uri) && isArticleUrl(c.uri));
+    .map(c => ({ uri: c.web.uri, title: c.web.title || '' }));
+}
+
+// Resolve redirect URLs in parallel to get actual article URLs
+async function resolveGroundingUrls(rawUrls) {
+  if (!rawUrls || !rawUrls.length) return [];
+  const results = await Promise.all(
+    rawUrls.slice(0, 20).map(async ({ uri, title }) => {
+      try {
+        const response = await fetch(uri, {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: AbortSignal.timeout(5000)
+        });
+        const resolved = response.url;
+        if (isApprovedDomain(resolved) && isArticleUrl(resolved)) {
+          return { uri: resolved, title };
+        }
+        return null;
+      } catch { return null; }
+    })
+  );
+  return results.filter(Boolean);
 }
 
 // ── GEMINI API CALL ──
@@ -181,7 +203,7 @@ function call1Prompt(type, morningHeadlines, isFirstRun) {
     'Find the top ' + count + ' international and top ' + count + ' local HK qualifying stories.\n\n' +
     'For each story write:\n' +
     'HEADLINE: [headline]\n' +
-    'TIME: [e.g. "3 hours ago"]\n' +
+    'TIME: [exact time, e.g. "2 hours ago" or "45 minutes ago" — MUST be specific, never just "Hours ago"]\n' +
     'COVERING SOURCES: [source name and position rank]\n' +
     'FREE SOURCES: [non-paywalled sources]\n' +
     'SUMMARY: [70 words max]\n\n' +
@@ -203,15 +225,16 @@ function call2JsonPrompt(trendReport, type, isFirstRun, groundingUrls) {
     groundingSection +
     'APPROVED SOURCES ONLY: ' + INTL_SOURCES + ', ' + LOCAL_SOURCES + '\n\n' +
     'JSON SCHEMA:\n' +
-    '{"international":[{"headline":"...","time":"X hours ago","summary":"...","source_count":N,' +
+    '{"international":[{"headline":"...","time":"3 hours ago","summary":"...","source_count":N,' +
     '"sources":[{"name":"Reuters","position":1,"url":"https://reuters.com/world/story-slug-2026-04-12/","paywalled":false}],' +
-    '"url":"https://reuters.com/world/story-slug-2026-04-12/"}],"local":[...]}\n\n' +
+    '"url":"https://reuters.com/world/story-qDhom/world/story-slug-2026-04-12/"}],"local":[...]}\n\n' +
     'STRICT RULES:\n' +
     '- ' + firstRunNote + '\n' +
     '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
     '- ONLY include sources from the approved list above. Reject any unapproved source name.\n' +
     '- paywalled: true for WSJ, Bloomberg, FT only.\n' +
     '- story url and source url: ONLY use URLs from VERIFIED ARTICLE URLs above. NEVER a homepage like https://reuters.com. NEVER invent URLs. Set null if not found in VERIFIED list.\n' +
+    '- time: specific elapsed time like "2 hours ago" or "45 minutes ago". NEVER vague like "Hours ago".\n' +
     '- summary: complete sentences, 70 words max, never truncate mid-sentence.\n' +
     '- source_count: integer count of approved sources covering this story.\n' +
     '- no_update_intl: true if international empty.\n' +
@@ -322,7 +345,9 @@ export default async function handler(req, res) {
       true
     );
     const trendReport = call1Result.text;
-    const groundingUrls = call1Result.groundingUrls || [];
+    // Resolve Vertex AI redirect URLs to actual article URLs in parallel
+    const rawGroundingUrls = call1Result.groundingUrls || [];
+    const groundingUrls = await resolveGroundingUrls(rawGroundingUrls);
 
     // Call 2 (JSON mode): Structure output using trend report + verified grounding URLs
     const raw = await callGemini(
