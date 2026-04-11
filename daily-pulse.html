@@ -549,9 +549,8 @@ FOR EACH STORY:
 - sources: array of {name, position, url} — only from the approved lists above
 - url: best single article link
 
-Return ONLY raw JSON starting with { and ending with }. No markdown, no explanation, no preamble:
-{"international":[{"headline":"...","summary":"...","sources":[{"name":"BBC","position":1,"url":"https://..."}],"url":"https://..."}],"local":[{"headline":"...","summary":"...","sources":[{"name":"SCMP","position":1,"url":"https://..."}],"url":"https://..."}]}`;
-}`;
+Return ONLY raw JSON starting with { and ending with }. No markdown, no explanation, no preamble.
+Example structure: international array with headline, summary, sources array (name+position+url), and url. Same for local array.`;
 }
 
 // ── STATE ──
