@@ -98,6 +98,7 @@
   .card-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
   .source-chip { background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 9px; font-size: 10px; color: var(--muted); font-weight: 500; text-decoration: none; display: inline-block; }
   .source-chip-link { color: var(--accent); border-color: #e8c0b8; background: #fff5f4; }
+  .card-time { font-size: 11px; color: var(--muted); margin-bottom: 8px; font-style: italic; }
   .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--accent); text-decoration: none; }
 
   /* COPY */
@@ -195,59 +196,64 @@ function researchPrompt(type, morningHeadlines, isFirstRun) {
   const count = isEvening ? 1 : 3;
   const today = new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-  const firstRunNote = isFirstRun
-    ? 'IMPORTANT: This is the first search of the day. You MUST find at least one story per section. If nothing appears in the top 3 positions across 3 sources, keep checking lower-ranked stories (top 4, 5, 6 and beyond) until you find qualifying stories. Do not leave either section empty.'
-    : 'If no new story qualifies at top 3 positions, it is acceptable to report no update for that section.';
+  const firstRunRule = isFirstRun
+    ? 'CRITICAL FIRST RUN RULE: This is the first run of the day. You MUST return at least one international story AND at least one local HK story no matter what. Empty arrays are strictly forbidden. If nothing appears in top 3 positions across 3 sources, keep going to top 4, top 5, top 6, and beyond until you find stories. Do not stop until you have found qualifying stories for BOTH sections.'
+    : 'If no new story qualifies at top 3 after excluding morning stories, report no update for that section.';
 
   const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
-    ? 'EXCLUDE any story already covered this morning:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
+    ? 'EXCLUDE these morning stories — find different ones:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
     : '';
 
-  return 'You are a news research assistant for a Hong Kong reader. Today is ' + today + '.\n\n' +
-    'Search the following sources and identify the top repeated headlines.\n\n' +
-    'INTERNATIONAL SOURCES (search in this order):\n' +
-    '1. Reuters (reuters.com)\n2. BBC News (bbc.com)\n3. Bloomberg (bloomberg.com)\n' +
-    '4. New York Times (nytimes.com)\n5. CNN (cnn.com)\n6. Wall Street Journal (wsj.com)\n' +
-    '7. CNBC (cnbc.com)\n8. Fox News (foxnews.com)\n\n' +
-    'LOCAL HK SOURCES (search in this order):\n' +
-    '1. SCMP (scmp.com)\n2. RTHK (rthk.hk)\n3. HKET (hket.com)\n' +
-    '4. Ming Pao (mingpao.com)\n5. HKT (hkt.com)\n6. On.cc (on.cc)\n7. The Standard (thestandard.com.hk)\n\n' +
+  return 'You are Daily Pulse, a news digest for a Hong Kong reader. Today is ' + today + '.\n\n' +
+    'Use Google Search to find today\'s top headlines. Use ONLY the exact sources listed below.\n\n' +
+    'INTERNATIONAL SOURCES ONLY (in order):\n' +
+    '1. Reuters (reuters.com)  2. BBC News (bbc.com)  3. Bloomberg (bloomberg.com)\n' +
+    '4. New York Times (nytimes.com)  5. CNN (cnn.com)  6. Wall Street Journal (wsj.com)\n' +
+    '7. CNBC (cnbc.com)  8. Fox News (foxnews.com)\n\n' +
+    'LOCAL HK SOURCES ONLY (in order):\n' +
+    '1. SCMP (scmp.com)  2. RTHK (rthk.hk)  3. HKET (hket.com)\n' +
+    '4. Ming Pao (mingpao.com)  5. HKT (hkt.com)  6. On.cc (on.cc)  7. The Standard (thestandard.com.hk)\n\n' +
     'RULES:\n' +
-    '- Use ONLY the sources listed. Do NOT include Al Jazeera, AP, Anadolu Agency, The News Pakistan, or any other source.\n' +
-    '- Find the ' + count + ' most repeated international stor' + (count > 1 ? 'ies' : 'y') + ' appearing in the top 3 headline positions of at least 3 international sources.\n' +
-    '- Find the ' + count + ' most repeated local HK stor' + (count > 1 ? 'ies' : 'y') + ' appearing in the top 3 headline positions of at least 3 local sources.\n' +
-    '- Fall back to top 4, top 5, top 6 if needed.\n' +
-    '- ' + firstRunNote + '\n\n' +
+    '- Use ONLY sources listed. Never include Al Jazeera, AP, Anadolu Agency, The News Pakistan, or any unlisted source.\n' +
+    '- Find the ' + count + ' most repeated international stor' + (count > 1 ? 'ies' : 'y') + ' in the TOP 3 positions of at least 3 international sources.\n' +
+    '- Find the ' + count + ' most repeated local HK stor' + (count > 1 ? 'ies' : 'y') + ' in the TOP 3 positions of at least 3 local sources.\n' +
+    '- Fall back to top 4, top 5, top 6 and beyond if needed.\n' +
+    '- ' + firstRunRule + '\n\n' +
     exclusion +
-    'For each qualifying story write a plain text report with:\n' +
-    '- HEADLINE: the story headline\n' +
+    'FOR EACH QUALIFYING STORY REPORT:\n' +
+    '- HEADLINE: clear factual headline\n' +
+    '- TIME: how long ago the story was published, as reported by the news source (e.g. "3 hours ago", "5 hours ago"). If exact time not available, use approximate.\n' +
     '- SUMMARY: what happened, why it matters, what comes next (70 words max)\n' +
-    '- SOURCES: list each source name, its position rank, and the direct article URL\n' +
+    '- SOURCE COUNT: total number of listed sources covering this story in their top headlines\n' +
+    '- SOURCES: for each source covering it, list: source name, position rank, direct article URL\n' +
     '- BEST URL: the single most detailed article link\n\n' +
-    'Write the report in plain prose. Do not use JSON. Do not use markdown code blocks.\n' +
-    'Label sections clearly as INTERNATIONAL STORIES and LOCAL HK STORIES.';
+    'Write the report in plain prose. No JSON. No markdown code blocks.\n' +
+    'Label sections clearly as INTERNATIONAL STORIES and LOCAL HK STORIES.\n' +
+    'If a section has no stories even after checking all ranks, write "NO STORIES FOUND" for that section.';
 }
 
 function structurePrompt(researchReport, type, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 3;
   const firstRunNote = isFirstRun
-    ? 'This was a first run — both international and local arrays must be non-empty.'
-    : 'If a section had no qualifying stories, its array may be empty and set the corresponding no_update flag.';
+    ? 'CRITICAL: This was a first run. Both international and local arrays MUST be non-empty. Return at least one story per section.'
+    : 'If a section had no qualifying stories, its array may be empty with the corresponding no_update flag set.';
 
-  return 'You are a data formatter. Convert the following news research report into a JSON object.\n\n' +
-    'RESEARCH REPORT:\n' +
-    researchReport + '\n\n' +
+  return 'You are a data formatter. Convert the news research report below into a JSON object.\n\n' +
+    'RESEARCH REPORT:\n' + researchReport + '\n\n' +
     'OUTPUT RULES:\n' +
     '- Return a single valid JSON object only. No markdown. No explanation. No code fences.\n' +
     '- ' + firstRunNote + '\n' +
     '- international: array of up to ' + count + ' story objects\n' +
     '- local: array of up to ' + count + ' story objects\n' +
-    '- Each story object: { "headline": "...", "summary": "...", "sources": [{"name":"...","position":1,"url":"..."}], "url":"..." }\n' +
-    '- If international section was empty in the report: "no_update_intl": true, "international": []\n' +
-    '- If local section was empty in the report: "no_update_local": true, "local": []\n' +
-    '- summary must be 70 words or fewer\n' +
-    '- sources must only include: Reuters, BBC, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News, SCMP, RTHK, HKET, Ming Pao, HKT, On.cc, The Standard\n\n' +
+    '- Each story: { "headline":"...", "time":"X hours ago", "summary":"...", "source_count": N, "sources":[{"name":"...","position":1,"url":"..."}], "url":"..." }\n' +
+    '- time: how long ago published as reported by the source (e.g. "3 hours ago"). Use "unknown" if not found.\n' +
+    '- source_count: integer — total number of listed sources covering this story\n' +
+    '- If international was empty in report: "no_update_intl": true, "international": []\n' +
+    '- If local was empty in report: "no_update_local": true, "local": []\n' +
+    '- summary: 70 words max\n' +
+    '- sources: only from approved list (Reuters, BBC, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News, SCMP, RTHK, HKET, Ming Pao, HKT, On.cc, The Standard)\n' +
+    '- Every source object must include name, position, AND url. If url not found, use the source homepage.\n\n' +
     'Return only the JSON object starting with { and ending with }.';
 }
 
@@ -320,7 +326,9 @@ async function runDigest(type) {
     updateSpinner('Structuring results…');
     const parsed = await callGeminiStructured(gemKey, structurePrompt(report, type, isFirstRun));
 
-    const record = { items: parsed, fetchedAt: new Date().toISOString() };
+    // Merge new results with existing using combined pool logic
+    const merged = mergeDigests(digestStore[type], parsed);
+    const record = { items: merged, fetchedAt: new Date().toISOString() };
     digestStore[type] = record;
     saveDigests();
     setLoading(false);
@@ -484,6 +492,53 @@ function hideError()        { document.getElementById('error-box').className = '
 function formatDate(d)      { return d.toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
 function formatTime(d)      { return d.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' }); }
 
+
+// ── MERGE: combine old + new stories, rank by source_count then recency ──
+function mergeDigests(existingRecord, newItems) {
+  if (!existingRecord) return newItems;
+
+  function mergeSection(oldArr, newArr, maxCount) {
+    // Combine both arrays, deduplicate by headline similarity
+    const combined = [...(oldArr || [])];
+    for (const newStory of (newArr || [])) {
+      const isDupe = combined.some(old =>
+        old.headline.toLowerCase().split(' ').filter(w => w.length > 4)
+          .filter(w => newStory.headline.toLowerCase().includes(w)).length >= 3
+      );
+      if (!isDupe) combined.push(newStory);
+      else {
+        // If duplicate, keep the one with higher source_count; if equal, keep new (more recent)
+        const idx = combined.findIndex(old =>
+          old.headline.toLowerCase().split(' ').filter(w => w.length > 4)
+            .filter(w => newStory.headline.toLowerCase().includes(w)).length >= 3
+        );
+        if (idx >= 0) {
+          const oldCount = combined[idx].source_count || (combined[idx].sources || []).length;
+          const newCount = newStory.source_count || (newStory.sources || []).length;
+          if (newCount >= oldCount) combined[idx] = newStory; // equal or better → replace with newer
+        }
+      }
+    }
+    // Sort by source_count descending
+    combined.sort((a, b) => {
+      const aCount = a.source_count || (a.sources || []).length;
+      const bCount = b.source_count || (b.sources || []).length;
+      return bCount - aCount;
+    });
+    return combined.slice(0, maxCount);
+  }
+
+  const type = (existingRecord.items.international || []).length <= 1 ? 'evening' : 'morning';
+  const maxCount = type === 'evening' ? 1 : 3;
+
+  return {
+    international: mergeSection(existingRecord.items.international, newItems.international, maxCount),
+    local: mergeSection(existingRecord.items.local, newItems.local, maxCount),
+    no_update_intl: (!newItems.international || !newItems.international.length) && (!existingRecord.items.international || !existingRecord.items.international.length),
+    no_update_local: (!newItems.local || !newItems.local.length) && (!existingRecord.items.local || !existingRecord.items.local.length),
+  };
+}
+
 // ── RENDER ──
 function renderSection(type, record, restored) {
   const section   = document.getElementById(type + '-section');
@@ -517,6 +572,18 @@ function renderSection(type, record, restored) {
   section.style.display = 'block';
 }
 
+// Fallback homepages for sources without article URLs
+const SOURCE_HOMES = {
+  'Reuters': 'https://reuters.com', 'BBC': 'https://bbc.com/news',
+  'Bloomberg': 'https://bloomberg.com', 'NYT': 'https://nytimes.com',
+  'CNN': 'https://cnn.com', 'WSJ': 'https://wsj.com',
+  'CNBC': 'https://cnbc.com', 'Fox News': 'https://foxnews.com',
+  'SCMP': 'https://scmp.com', 'RTHK': 'https://rthk.hk',
+  'HKET': 'https://hket.com', 'Ming Pao': 'https://mingpao.com',
+  'HKT': 'https://hkt.com', 'On.cc': 'https://on.cc',
+  'The Standard': 'https://thestandard.com.hk'
+};
+
 function makeCard(item, type, num, restored) {
   const card = document.createElement('div');
   card.className = restored ? 'result-card restored' : 'result-card';
@@ -524,11 +591,17 @@ function makeCard(item, type, num, restored) {
   const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
   const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
 
-  const chips = (item.sources || []).map(s => {
+  const sources = item.sources && item.sources.length ? item.sources : [{ name: 'Source unknown', position: null, url: null }];
+  const chips = sources.map(s => {
     const pos = s.position ? ' #' + s.position : '';
-    if (s.url) return '<a class="source-chip source-chip-link" href="' + s.url + '" target="_blank">' + s.name + pos + '</a>';
+    const href = s.url || SOURCE_HOMES[s.name] || null;
+    if (href) return '<a class="source-chip source-chip-link" href="' + href + '" target="_blank">' + s.name + pos + '</a>';
     return '<span class="source-chip">' + s.name + pos + '</span>';
   }).join('');
+
+  const timeHtml = item.time && item.time !== 'unknown'
+    ? '<p class="card-time">' + item.time + '</p>'
+    : '';
 
   const linkHtml = item.url
     ? '<a class="card-link" href="' + item.url + '" target="_blank">Read full article →</a>'
@@ -541,6 +614,7 @@ function makeCard(item, type, num, restored) {
     '</div>' +
     '<div class="card-body">' +
       '<p class="card-headline">' + item.headline + '</p>' +
+      timeHtml +
       '<p class="card-summary">' + (item.summary || '') + '</p>' +
       '<div class="card-sources">' + chips + '</div>' +
       linkHtml +
