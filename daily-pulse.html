@@ -131,13 +131,13 @@
 </head>
 <body>
 
-<!-- SETUP (unused â no API key needed from user) -->
+<!-- SETUP (unused — no API key needed from user) -->
 <div id="setup-screen">
   <p class="setup-logo">Your morning briefing</p>
   <h1 class="setup-title">Daily <span style="color:var(--accent)">Pulse</span></h1>
   <div class="setup-rule"></div>
   <p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.7;">
-    Daily Pulse delivers real-time Hong Kong and international news digests.<br>Tap âï¸ Morning or ð Evening to get started.
+    Daily Pulse delivers real-time Hong Kong and international news digests.<br>Tap ☀️ Morning or 🌙 Evening to get started.
   </p>
   <button class="btn-primary" style="margin-top:32px;" onclick="showMain()">Open Daily Pulse</button>
 </div>
@@ -148,27 +148,27 @@
     <p class="masthead-eyebrow">Hong Kong Edition</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-date" id="today-date"></p>
-    <button class="settings-btn" onclick="showSetup()" title="Clear saved digests">âï¸</button>
+    <button class="settings-btn" onclick="showSetup()" title="Clear saved digests">⚙︎</button>
   </div>
 
   <div class="trigger-section">
     <div class="trigger-row">
       <div class="trigger-btn morning" id="btn-morning" onclick="runDigest('morning')">
-        <div class="trigger-icon">âï¸</div>
+        <div class="trigger-icon">☀️</div>
         <span class="trigger-label">Morning</span>
-        <span class="trigger-sub" id="morning-sub">2 intl Â· 2 local</span>
+        <span class="trigger-sub" id="morning-sub">2 intl · 2 local</span>
       </div>
       <div class="trigger-btn evening" id="btn-evening" onclick="runDigest('evening')">
-        <div class="tridger-icon">ð</div>
+        <div class="trigger-icon">🌙</div>
         <span class="trigger-label">Evening</span>
-        <span class="trigger-sub" id="evening-sub">1 intl Â· 1 local</span>
+        <span class="trigger-sub" id="evening-sub">1 intl · 1 local</span>
       </div>
     </div>
   </div>
 
   <div class="spinner-wrap" id="spinner">
     <div class="spinner"></div>
-    <p class="spinner-label" id="spinner-label">Searching live headlinesâ¦</p>
+    <p class="spinner-label" id="spinner-label">Searching live headlines…</p>
   </div>
 
   <div class="error-box" id="error-box"></div>
@@ -176,7 +176,7 @@
   <div id="morning-section" style="display:none">
     <div class="digest-section">
       <div class="digest-header">
-        <span class="digest-header-title morning">âï¸ Morning</span>
+        <span class="digest-header-title morning">☀️ Morning</span>
         <span class="digest-date-pill" id="morning-date-pill"></span>
         <span class="digest-timestamp" id="morning-timestamp"></span>
       </div>
@@ -190,7 +190,7 @@
   <div id="evening-section" style="display:none">
     <div class="digest-section">
       <div class="digest-header">
-        <span class="digest-header-title evening">ð Evening</span>
+        <span class="digest-header-title evening">🌙 Evening</span>
         <span class="digest-date-pill" id="evening-date-pill"></span>
         <span class="digest-timestamp" id="evening-timestamp"></span>
       </div>
@@ -205,7 +205,7 @@
 </div>
 
 <script>
-// ââ CONSTANTS ââ
+// ── CONSTANTS ──
 const API_BASE = 'https://daily-pulse-theta.vercel.app';
 const PAYWALLED_SOURCES = ['WSJ', 'Bloomberg', 'FT'];
 const APPROVED_DOMAINS = [
@@ -216,36 +216,13 @@ const APPROVED_DOMAINS = [
   'thestandard.com.hk', 'hongkongfp.com'
 ];
 
-// Fallback homepages for sources without article URLs
-const SOURCE_HOMES = {
-  'Reuters':      'https://reuters.com',
-  'BBC':          'https://bbc.com/news',
-  'Bloomberg':    'https://bloomberg.com',
-  'NYT':          'https://nytimes.com',
-  'CNN':          'https://cnn.com',
-  'WSJ':          'https://wsj.com',
-  'CNBC':         'https://cnbc.com',
-  'Fox News':     'https://foxnews.com',
-  'Fox Business': 'https://foxbusiness.com',
-  'FT':           'https://ft.com',
-  'AP':           'https://apnews.com',
-  'The Guardian': 'https://theguardian.com',
-  'NBC News':     'https://nbcnews.com',
-  'SCMP':         'https://scmp.com',
-  'RTHK':         'https://rthk.hk',
-  'HKET':         'https://hket.com',
-  'Ming Pao':     'https://mingpao.com',
-  'HKT':          'https://hkt.com',
-  'On.cc':        'https://on.cc',
-  'The Standard': 'https://thestandard.com.hk',
-  'HKFP':         'https://hongkongfp.com'
-};
+// Source chips only link to specific article URLs — no homepage fallbacks
 
-// ââ STATE ââ
+// ── STATE ──
 let digestStore = { morning: null, evening: null };
 let currentSession = 0;
 
-// ââ INIT ââ
+// ── INIT ──
 window.addEventListener('load', () => {
   showMain();
   restoreDigests();
@@ -267,7 +244,7 @@ function showSetup() {
   }
 }
 
-// ââ RESTORE ââ
+// ── RESTORE ──
 function restoreDigests() {
   const saved = localStorage.getItem('dp_digests');
   if (!saved) return;
@@ -283,7 +260,7 @@ function saveDigests() {
   localStorage.setItem('dp_digests', JSON.stringify(digestStore));
 }
 
-// ââ RUN ââ
+// ── RUN ──
 async function runDigest(type) {
   const session = ++currentSession;
   hideError();
@@ -297,7 +274,7 @@ async function runDigest(type) {
     const today = new Date().toDateString();
     const isFirstRun = !existingRecord || new Date(existingRecord.fetchedAt).toDateString() !== today;
 
-    updateSpinner('Searching latest headlinesâ¦');
+    updateSpinner('Searching latest headlines ┆');
 
     const res = await fetch(API_BASE + '/api/digest', {
       method: 'POST',
@@ -305,7 +282,7 @@ async function runDigest(type) {
       body: JSON.stringify({ type, morningHeadlines, isFirstRun })
     });
 
-    if (session !== currentSession) return; // stale â a newer run started
+    if (session !== currentSession) return; // stale — a newer run started
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -330,7 +307,7 @@ async function runDigest(type) {
   }
 }
 
-// ââ HELPERS ââ
+// ── HELPERS ──
 function setLoading(on) {
   document.getElementById('spinner').className = on ? 'spinner-wrap visible' : 'spinner-wrap';
   document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
@@ -368,11 +345,11 @@ function updateSubtitles() {
   const eLocal = evening ? (evening.items.local || []).length : 0;
   const mSub = document.getElementById('morning-sub');
   const eSub = document.getElementById('evening-sub');
-  if (mSub) mSub.textContent = morning ? (mIntl + ' intl Â· ' + mLocal + ' local') : '2 intl Â· 2 local';
-  if (eSub) eSub.textContent = evening ? (eIntl + ' intl Â· ' + eLocal + ' local') : '1 intl Â· 1 local';
+  if (mSub) mSub.textContent = morning ? (mIntl + ' intl · ' + mLocal + ' local') : '2 intl · 2 local';
+  if (eSub) eSub.textContent = evening ? (eIntl + ' intl · ' + eLocal + ' local') : '1 intl · 1 local';
 }
 
-// ââ MERGE: combine old + new stories, rank by source_count then keep newest ââ
+// ── MERGE: combine old + new stories, rank by source_count then keep newest ──
 function mergeDigests(existingRecord, newItems, type) {
   if (!existingRecord) return newItems;
   const maxCount = type === 'evening' ? 1 : 2;
@@ -394,7 +371,7 @@ function mergeDigests(existingRecord, newItems, type) {
         if (idx >= 0) {
           const oldCount = combined[idx].source_count || (combined[idx].sources || []).length;
           const newCount = newStory.source_count || (newStory.sources || []).length;
-          if (newCount >= oldCount) combined[idx] = newStory; // equal or better â keep newer
+          if (newCount >= oldCount) combined[idx] = newStory; // equal or better → keep newer
         }
       }
     }
@@ -416,7 +393,7 @@ function mergeDigests(existingRecord, newItems, type) {
   };
 }
 
-// ââ RENDER ââ
+// ── RENDER ──
 function renderSection(type, record, restored) {
   const section = document.getElementById(type + '-section');
   const cardsWrap = document.getElementById(type + '-cards');
@@ -453,7 +430,7 @@ function makeCard(item, type, num, restored) {
   card.className = restored ? 'result-card restored' : 'result-card';
 
   const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
-  const badgeText = type === 'intl' ? 'ð International' : 'ð­ð° Local HK';
+  const badgeText = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
 
   const sources = item.sources && item.sources.length
     ? item.sources
@@ -465,11 +442,11 @@ function makeCard(item, type, num, restored) {
 
     // Paywalled sources: show chip but never hyperlink
     if (isPaywalled) {
-      return '<span class="source-chip source-chip-paywall" title="Paywalled">' + s.name + pos + ' ð</span>';
+      return '<span class="source-chip source-chip-paywall" title="Paywalled">' + s.name + pos + ' 🔒</span>';
     }
 
-    // Free sources: hyperlink to article URL if available, fall back to known homepage
-    const href = s.url || SOURCE_HOMES[s.name] || null;
+    // Free sources: hyperlink only if a specific article URL is available
+    const href = s.url || null;
     if (href) {
       return '<a class="source-chip source-chip-link" href="' + href + '" target="_blank" rel="noopener">' + s.name + pos + '</a>';
     }
@@ -481,7 +458,7 @@ function makeCard(item, type, num, restored) {
     : '';
 
   const linkHtml = item.url
-    ? '<a class="card-link" href="' + item.url + '" target="_blank" rel="noopener">Read full article â</a>'
+    ? '<a class="card-link" href="' + item.url + '" target="_blank" rel="noopener">Read full article →</a>'
     : '';
 
   card.innerHTML =
@@ -500,51 +477,51 @@ function makeCard(item, type, num, restored) {
   return card;
 }
 
-// ââ COPY ââ
+// ── COPY ──
 function copyDigest(type) {
   const record = digestStore[type];
   if (!record) return;
 
-  const label = type === 'morning' ? 'âï¸ MORNING DIGEST' : 'ð EVENING DIGEST';
+  const label = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
   const fetchedAt = new Date(record.fetchedAt);
-  let text = label + '\n' + formatDate(fetchedAt) + ' Â· ' + formatTime(fetchedAt) + '\n\n';
+  let text = label + '\n' + formatDate(fetchedAt) + ' · ' + formatTime(fetchedAt) + '\n\n';
 
   const intl = record.items.international || [];
   const local = record.items.local || [];
 
   if (intl.length) {
-    text += 'ð INTERNATIONAL\n\n';
+    text += '🌍 INTERNATIONAL\n\n';
     intl.forEach((item, i) => {
       const srcs = (item.sources || []).map(s =>
-        s.name + ' #' + s.position + (s.paywalled ? ' ð' : '')
+        s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')
       ).join(', ');
       text += (i+1) + '. ' + item.headline + '\n\n' +
               (item.summary || '') + '\n\nSources: ' + srcs + '\n' +
               (item.url || '') + '\n\n';
     });
   } else {
-    text += 'ð INTERNATIONAL\nNo international update.\n\n';
+    text += '🌍 INTERNATIONAL\nNo international update.\n\n';
   }
 
   if (local.length) {
-    text += 'ð­ð° LOCAL HK\n\n';
+    text += '🇭🇰 LOCAL HK\n\n';
     local.forEach((item, i) => {
       const srcs = (item.sources || []).map(s =>
-        s.name + ' #' + s.position + (s.paywalled ? ' ð' : '')
+        s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')
       ).join(', ');
       text += (i+1) + '. ' + item.headline + '\n\n' +
               (item.summary || '') + '\n\nSources: ' + srcs + '\n' +
               (item.url || '') + '\n\n';
     });
   } else {
-    text += 'ð­ð° LOCAL HK\nNo local HK update.\n\n';
+    text += '🇭🇰 LOCAL HK\nNo local HK update.\n\n';
   }
 
   const btn = document.querySelector('.btn-copy.' + type + '-copy');
   const orig = btn.textContent;
 
   navigator.clipboard.writeText(text.trim()).then(() => {
-    btn.textContent = 'â Copied!';
+    btn.textContent = '✓ Copied!';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   }).catch(() => {
     const ta = document.createElement('textarea');
@@ -555,7 +532,7 @@ function copyDigest(type) {
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    btn.textContent = 'â Copied!';
+    btn.textContent = '✓ Copied!';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   });
 }
