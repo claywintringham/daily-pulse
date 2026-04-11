@@ -1,4 +1,4 @@
-// Daily Pulse â Vercel Serverless Function
+// Daily Pulse — Vercel Serverless Function
 // Handles all three Gemini calls server-side with URL validation
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
@@ -21,7 +21,7 @@ const LOCAL_SOURCES = 'SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), ' +
 const FORBIDDEN = 'Al Jazeera, Anadolu Agency, The News Pakistan, Kurdistan24, ' +
   'Local Gazette, Global News, Times of India, or any outlet not in the approved lists';
 
-// ââ URL VALIDATION ââ
+// ── URL VALIDATION ──
 
 function isApprovedDomain(url) {
   if (!url || url === 'NOT FOUND') return false;
@@ -35,23 +35,25 @@ function isArticleUrl(url) {
   if (!url) return false;
   try {
     const u = new URL(url);
-    // Reject pure homepages and section pages (path is / or just /section)
+    // Reject pure homepages: path must be more than just /section-name
+    // Require path length > 10 to filter out section pages like /world /news /asia
     const path = u.pathname.replace(/\/$/, '');
-    return path.length > 10; // article paths are always longer than /news or /world
+    return path.length > 10;
   } catch { return false; }
 }
 
-async function verifyUrl(url) {
-  if (!isApprovedDomain(url) || !isArticleUrl(url)) return false;
-  try {
-    const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
-    return res.ok || res.status === 405; // 405 = method not allowed but URL exists
-  } catch { return false; }
+// ── GROUNDING URL EXTRACTION ──
+
+function extractGroundingUrls(chunks) {
+  return (chunks || [])
+    .filter(c => c.web && c.web.uri)
+    .map(c => ({ uri: c.web.uri, title: c.web.title || '' }))
+    .filter(c => isApprovedDomain(c.uri) && isArticleUrl(c.uri));
 }
 
-// ââ GEMINI API CALL ââ
+// ── GEMINI API CALL ──
 
-async function callGemini(prompt, useGrounding) {
+async function callGemini(prompt, useGrounding, returnMeta) {
   let lastError = null;
   for (const model of MODELS) {
     try {
@@ -84,7 +86,7 @@ async function callGemini(prompt, useGrounding) {
       const parts = data.candidates?.[0]?.content?.parts || [];
       let text = parts.filter(p => p.text).map(p => p.text).join('\n');
 
-      // STOP with empty parts â try grounding supports
+      // STOP with empty parts — try grounding supports
       if (!text.trim()) {
         const supports = data.candidates?.[0]?.groundingMetadata?.groundingSupports || [];
         text = supports.map(s => s?.segment?.text || '').filter(Boolean).join('\n');
@@ -120,7 +122,13 @@ async function callGemini(prompt, useGrounding) {
                 const rSupports = retryData.candidates?.[0]?.groundingMetadata?.groundingSupports || [];
                 rText = rSupports.map(s => s?.segment?.text || '').filter(Boolean).join('\n');
               }
-              if (rText.trim()) return rText;
+              if (rText.trim()) {
+                if (returnMeta) {
+                  const rChunks = retryData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+                  return { text: rText, groundingUrls: extractGroundingUrls(rChunks) };
+                }
+                return rText;
+              }
             }
           } catch(_) { /* fall through to next model */ }
         }
@@ -129,6 +137,11 @@ async function callGemini(prompt, useGrounding) {
         continue;
       }
 
+      // Extract actual article URLs Gemini sourced during grounding
+      const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const groundingUrls = extractGroundingUrls(chunks);
+
+      if (returnMeta) return { text, groundingUrls };
       return text;
     } catch(e) {
       lastError = e;
@@ -139,18 +152,18 @@ async function callGemini(prompt, useGrounding) {
   throw lastError || new Error('All models failed');
 }
 
-// ââ PROMPTS ââ
+// ── PROMPTS ──
 
 function call1Prompt(type, morningHeadlines, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 2;
-  const recency = isEvening ? '6 hours' : '12 hours';
+  const recency = isEvening ? '8 hours' : '24 hours';
   const today = new Date().toLocaleDateString('en-HK', {
     weekday:'long', year:'numeric', month:'long', day:'numeric'
   });
   const firstRunRule = isFirstRun
-    ? 'CRITICAL FIRST RUN: You MUST return at least one international AND one local story. Empty sections are strictly forbidden. Descend to top 4, 5, 6 and beyond until real stories are found. Never invent placeholder content.'
-    : 'If no qualifying story exists, mark that section as no update.';
+    ? 'CRITICAL: You MUST return at least ' + count + ' international AND at least 1 local HK story. Empty sections are FORBIDDEN on first run. Broaden search to top 5, 6, 7 ranked stories if needed. Articles MUST be published within the last ' + recency + ' — reject anything older. Never invent placeholder content.'
+    : 'If no new qualifying story was published in the last ' + recency + ', return an empty array for that section.';
   const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
     ? 'EXCLUDE these morning stories:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
     : '';
@@ -176,41 +189,54 @@ function call1Prompt(type, morningHeadlines, isFirstRun) {
 }
 
 function call2Prompt(trendReport) {
-  return 'You are a URL retrieval assistant.\n\n' +
+  return 'You are a URL retrieval assistant. Find EXACT article URLs for each story listed below.\n\n' +
     'TREND REPORT:\n' + trendReport + '\n\n' +
-    'TASK: For each story and source listed, find the exact article URL using targeted searches like "site:reuters.com [headline keywords]".\n\n' +
+    'TASK: For each story and each source, search for the specific article URL.\n' +
+    'Use targeted searches like: site:reuters.com "headline keywords" 2025\n\n' +
     'APPROVED DOMAINS ONLY: ' + APPROVED_DOMAINS.join(', ') + '\n\n' +
-    'RULES:\n' +
-    '- URL must be a specific article page with a path longer than /section-name. Reject homepages.\n' +
-    '- WSJ, Bloomberg, FT: mark paywalled:yes. Still find URL if possible.\n' +
-    '- If no article URL found, write NOT FOUND.\n' +
+    'CRITICAL URL RULES:\n' +
+    '- URL MUST be a specific article page with a long unique path\n' +
+    '- GOOD: https://reuters.com/world/us/trump-tariff-china-april-2025-04-11/\n' +
+    '- GOOD: https://bbc.com/news/articles/c9d8xyz123\n' +
+    '- GOOD: https://scmp.com/news/hong-kong/politics/article/3307000/...\n' +
+    '- BAD (homepage): https://reuters.com\n' +
+    '- BAD (section page): https://apnews.com/hub/business\n' +
+    '- BAD (too short): https://bbc.com/news\n' +
+    '- If you cannot find a specific article URL, write NOT FOUND — do NOT use a homepage.\n' +
+    '- WSJ, Bloomberg, FT: mark paywalled:yes. Still find article URL if possible.\n' +
     '- Never use URLs from unapproved domains.\n\n' +
     'Output for each story:\n' +
     'STORY: [headline]\n' +
     'URLS:\n' +
-    '  - [Source] | paywalled:[yes/no] | [URL or NOT FOUND]\n' +
-    'BEST FREE URL: [best free article URL]\n\n' +
+    '  - [Source] | paywalled:[yes/no] | [full article URL or NOT FOUND]\n' +
+    'BEST FREE URL: [best free specific article URL, or NOT FOUND]\n\n' +
     'Plain text only.';
 }
 
-function call3Prompt(trendReport, urlReport, type, isFirstRun) {
+function call3Prompt(trendReport, urlReport, type, isFirstRun, groundingUrls) {
   const count = type === 'evening' ? 1 : 2;
   const firstRunNote = isFirstRun
     ? 'CRITICAL: First run. Both arrays must be non-empty with real stories only. No placeholders. No invented sources.'
     : 'Empty arrays allowed if no stories qualified.';
+  const groundingSection = (groundingUrls && groundingUrls.length)
+    ? '\nVERIFIED ARTICLE URLs (Gemini sourced these during research — use these first):\n' +
+      groundingUrls.slice(0, 20).map(u => '- ' + u.uri + (u.title ? ' [' + u.title.substring(0, 60) + ']' : '')).join('\n') + '\n'
+    : '';
+
   return 'Convert these reports into a single JSON object.\n\n' +
     'TREND REPORT:\n' + trendReport + '\n\n' +
     'URL REPORT:\n' + urlReport + '\n\n' +
+    groundingSection +
     'APPROVED SOURCES ONLY: ' + INTL_SOURCES + ', ' + LOCAL_SOURCES + '\n\n' +
     'JSON SCHEMA:\n' +
-    '{"international":[{"headline":"...","time":"X hours ago","summary":"...","source_count":N,"sources":[{"name":"Reuters","position":1,"url":"https://...","paywalled":false}],"url":"https://..."}],"local":[...]}\n\n' +
+    '{"international":[{"headline":"...","time":"X hours ago","summary":"...","source_count":N,"sources":[{"name":"Reuters","position":1,"url":"https://reuters.com/world/story-2025-04-11/","paywalled":false}],"url":"https://reuters.com/world/story-2025-04-11/"}],"local":[...]}\n\n' +
     'STRICT RULES:\n' +
     '- ' + firstRunNote + '\n' +
     '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
     '- ONLY include sources from the approved list. Reject AP News, Global News, Local Gazette, Local Reporter, or any unapproved source.\n' +
     '- paywalled: true for WSJ, Bloomberg, FT only.\n' +
-    '- story url: best free article URL. Never a homepage. Never paywalled URL.\n' +
-    '- source url: from URL report only. If NOT FOUND and free, use source homepage as last resort.\n' +
+    '- story url: MUST be a specific article URL from URL report or VERIFIED ARTICLE URLs. NEVER a homepage. Set null if no specific article URL found.\n' +
+    '- source url: MUST be a specific article URL from URL report or VERIFIED ARTICLE URLs. NEVER a homepage. Set null if NOT FOUND.\n' +
     '- summary: complete sentences only. Never truncate mid-sentence. 70 words max.\n' +
     '- source_count: integer count of approved sources covering this story.\n' +
     '- no_update_intl: true if international empty.\n' +
@@ -218,26 +244,24 @@ function call3Prompt(trendReport, urlReport, type, isFirstRun) {
     '- Return ONLY the JSON object. No markdown. No explanation.';
 }
 
-// ââ APPROVED SOURCE NAMES (for validation) ââ
+// ── APPROVED SOURCE NAMES (for validation) ──
 const APPROVED_SOURCE_NAMES = [
   'Reuters', 'BBC', 'Bloomberg', 'NYT', 'CNN', 'WSJ', 'CNBC',
   'Fox News', 'Fox Business', 'FT', 'AP', 'The Guardian', 'NBC News',
   'SCMP', 'RTHK', 'HKET', 'Ming Pao', 'HKT', 'On.cc', 'The Standard', 'HKFP'
 ];
 
-// ââ VALIDATE AND CLEAN RESPONSE ââ
+// ── VALIDATE AND CLEAN RESPONSE ──
 
 async function validateAndClean(parsed) {
   async function cleanSection(stories) {
     if (!stories || !stories.length) return [];
     const cleaned = [];
     for (const story of stories) {
-      // Validate sources â strip any not in approved list
+      // Validate sources — strip any not in approved list
       const validSources = (story.sources || []).filter(s => {
         const name = (s.name || '').trim();
-        // Check against exact approved names
         if (APPROVED_SOURCE_NAMES.includes(name)) return true;
-        // Check against domain matching as fallback
         return APPROVED_DOMAINS.some(d => {
           const src = name.toLowerCase().replace(/\s/g, '');
           return d.includes(src) || src.includes(d.split('.')[0]);
@@ -251,25 +275,29 @@ async function validateAndClean(parsed) {
       const hasFreeSource = approvedSources.some(s => !s.paywalled);
       if (!hasFreeSource) continue;
 
-      // Reject fabricated stories: example.com, "placeholder" text, or "local news update" headlines
+      // Reject fabricated stories
       if ((story.url || '').includes('example.com')) continue;
       if ((story.summary || '').toLowerCase().includes('placeholder')) continue;
       if ((story.headline || '').toLowerCase().includes('local news update')) continue;
       if ((story.headline || '').toLowerCase().includes('placeholder')) continue;
 
-      // Verify story-level URL
+      // Determine story-level URL: must be a specific article URL, never a homepage
       let storyUrl = story.url;
       if (!isApprovedDomain(storyUrl) || !isArticleUrl(storyUrl)) {
-        // Find best free source URL as fallback
-        const freeSource = approvedSources.find(s => !s.paywalled && isArticleUrl(s.url));
-        storyUrl = freeSource ? freeSource.url : null;
+        // Look for a valid article URL from free sources
+        const freeArticle = approvedSources.find(s => !s.paywalled && isApprovedDomain(s.url) && isArticleUrl(s.url));
+        storyUrl = freeArticle ? freeArticle.url : null;
       }
 
-      // Clean source URLs: replace NOT FOUND with null
-      const cleanedSources = approvedSources.map(s => ({
-        ...s,
-        url: (s.url === 'NOT FOUND' || !isApprovedDomain(s.url)) ? null : s.url
-      }));
+      // Clean source URLs: null if NOT FOUND, unapproved domain, or homepage/section URL
+      const cleanedSources = approvedSources.map(s => {
+        const isPaywalled = s.paywalled || PAYWALLED.includes(s.name);
+        let sourceUrl = s.url;
+        if (!sourceUrl || sourceUrl === 'NOT FOUND' || !isApprovedDomain(sourceUrl) || !isArticleUrl(sourceUrl)) {
+          sourceUrl = null;
+        }
+        return { ...s, paywalled: isPaywalled, url: sourceUrl };
+      });
 
       cleaned.push({ ...story, sources: cleanedSources, url: storyUrl });
     }
@@ -284,7 +312,7 @@ async function validateAndClean(parsed) {
   };
 }
 
-// ââ MAIN HANDLER ââ
+// ── MAIN HANDLER ──
 
 export default async function handler(req, res) {
   // CORS headers
@@ -312,21 +340,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Call 1: Identify trending stories
-    const trendReport = await callGemini(
+    // Call 1: Identify trending stories + capture grounding URLs
+    const call1Result = await callGemini(
       call1Prompt(type, morningHeadlines || [], isFirstRun !== false),
+      true,
       true
     );
+    const trendReport = call1Result.text;
+    const call1Urls = call1Result.groundingUrls || [];
 
-    // Call 2: Retrieve exact article URLs
-    const urlReport = await callGemini(
+    // Call 2: Retrieve exact article URLs + capture more grounding URLs
+    const call2Result = await callGemini(
       call2Prompt(trendReport.substring(0, 4000)),
+      true,
       true
     );
+    const urlReport = call2Result.text;
+    const call2Urls = call2Result.groundingUrls || [];
 
-    // Call 3: Structure into JSON
+    // Combine all verified grounding URLs from both calls
+    const allGroundingUrls = [...call1Urls, ...call2Urls];
+
+    // Call 3: Structure into JSON, with verified grounding URLs as reference
     const raw = await callGemini(
-      call3Prompt(trendReport.substring(0, 3000), urlReport.substring(0, 3000), type, isFirstRun !== false),
+      call3Prompt(trendReport.substring(0, 3000), urlReport.substring(0, 3000), type, isFirstRun !== false, allGroundingUrls),
+      false,
       false
     );
 
