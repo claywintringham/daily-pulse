@@ -98,7 +98,8 @@
   .card-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
   .source-chip { background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 9px; font-size: 10px; color: var(--muted); font-weight: 500; text-decoration: none; display: inline-block; }
   .source-chip-link { color: var(--accent); border-color: #e8c0b8; background: #fff5f4; }
-  .card-time { font-size: 11px; color: var(--muted); margin-bottom: 8px; font-style: italic; }
+  .source-chip-paywall { color: var(--muted); border-color: var(--rule); background: var(--cream); opacity: 0.8; }
+  .card-time { font-size: 12px; color: var(--accent); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.02em; }
   .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--accent); text-decoration: none; }
 
   /* COPY */
@@ -189,73 +190,88 @@
 </div>
 
 <script>
-// ── PROMPTS ──
+// ── CONSTANTS ──
+const PAYWALLED_SOURCES = ['WSJ', 'Bloomberg', 'FT'];
+const INTL_SOURCES_LIST = 'Reuters (reuters.com), BBC (bbc.com), Bloomberg (bloomberg.com), NYT (nytimes.com), CNN (cnn.com), WSJ (wsj.com), CNBC (cnbc.com), Fox News (foxnews.com), Fox Business (foxbusiness.com), FT (ft.com)';
+const LOCAL_SOURCES_LIST = 'SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), Ming Pao (mingpao.com), HKT (hkt.com), On.cc (on.cc), The Standard (thestandard.com.hk)';
+const APPROVED_DOMAINS = ['reuters.com','bbc.com','bloomberg.com','nytimes.com','cnn.com','wsj.com','cnbc.com','foxnews.com','foxbusiness.com','ft.com','scmp.com','rthk.hk','hket.com','mingpao.com','hkt.com','on.cc','thestandard.com.hk'];
+const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
-function researchPrompt(type, morningHeadlines, isFirstRun) {
+function call1Prompt(type, morningHeadlines, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 3;
   const today = new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-
+  const recency = isEvening ? '6 hours' : '12 hours';
   const firstRunRule = isFirstRun
-    ? 'CRITICAL FIRST RUN RULE: This is the first run of the day. You MUST return at least one international story AND at least one local HK story no matter what. Empty arrays are strictly forbidden. If nothing appears in top 3 positions across 3 sources, keep going to top 4, top 5, top 6, and beyond until you find stories. Do not stop until you have found qualifying stories for BOTH sections.'
-    : 'If no new story qualifies at top 3 after excluding morning stories, report no update for that section.';
-
+    ? 'CRITICAL FIRST RUN: You MUST return at least one international AND one local story. Empty sections are forbidden. If nothing qualifies at top 3, descend to top 4, 5, 6 until stories are found.'
+    : 'If no new story qualifies after excluding morning stories, mark that section as no update.';
   const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
-    ? 'EXCLUDE these morning stories — find different ones:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
+    ? 'Exclude these morning stories:\n' + morningHeadlines.map((h,i) => (i+1) + '. ' + h).join('\n') + '\n\n'
     : '';
-
   return 'You are Daily Pulse, a news digest for a Hong Kong reader. Today is ' + today + '.\n\n' +
-    'Use Google Search to find today\'s top headlines. Use ONLY the exact sources listed below.\n\n' +
-    'INTERNATIONAL SOURCES ONLY (in order):\n' +
-    '1. Reuters (reuters.com)  2. BBC News (bbc.com)  3. Bloomberg (bloomberg.com)\n' +
-    '4. New York Times (nytimes.com)  5. CNN (cnn.com)  6. Wall Street Journal (wsj.com)\n' +
-    '7. CNBC (cnbc.com)  8. Fox News (foxnews.com)\n\n' +
-    'LOCAL HK SOURCES ONLY (in order):\n' +
-    '1. SCMP (scmp.com)  2. RTHK (rthk.hk)  3. HKET (hket.com)\n' +
-    '4. Ming Pao (mingpao.com)  5. HKT (hkt.com)  6. On.cc (on.cc)  7. The Standard (thestandard.com.hk)\n\n' +
+    'TASK: Find the most repeated top headlines published within the LAST ' + recency + ' ONLY. Ignore anything older. Use ONLY approved sources. Do NOT use Al Jazeera, AP, Anadolu Agency, The News Pakistan, Kurdistan24, or any unlisted outlet.\n\n' +
+    'INTERNATIONAL SOURCES: ' + INTL_SOURCES_LIST + '\n' +
+    'LOCAL HK SOURCES: ' + LOCAL_SOURCES_LIST + '\n\n' +
     'RULES:\n' +
-    '- Use ONLY sources listed. Never include Al Jazeera, AP, Anadolu Agency, The News Pakistan, or any unlisted source.\n' +
-    '- Find the ' + count + ' most repeated international stor' + (count > 1 ? 'ies' : 'y') + ' in the TOP 3 positions of at least 3 international sources.\n' +
-    '- Find the ' + count + ' most repeated local HK stor' + (count > 1 ? 'ies' : 'y') + ' in the TOP 3 positions of at least 3 local sources.\n' +
-    '- Fall back to top 4, top 5, top 6 and beyond if needed.\n' +
+    '- Story must appear in TOP 3 positions of at least 3 approved sources. Fall back to top 4, 5, 6 only if needed.\n' +
+    '- Story MUST be covered by at least one free source (not WSJ, Bloomberg, or FT).\n' +
+    '- RECENCY: published within last ' + recency + ' only. Reject any older story.\n' +
     '- ' + firstRunRule + '\n\n' +
     exclusion +
-    'FOR EACH QUALIFYING STORY REPORT:\n' +
-    '- HEADLINE: clear factual headline\n' +
-    '- TIME: how long ago the story was published, as reported by the news source (e.g. "3 hours ago", "5 hours ago"). If exact time not available, use approximate.\n' +
-    '- SUMMARY: what happened, why it matters, what comes next (70 words max)\n' +
-    '- SOURCE COUNT: total number of listed sources covering this story in their top headlines\n' +
-    '- SOURCES: for each source covering it, list: source name, position rank, direct article URL\n' +
-    '- BEST URL: the single most detailed article link\n\n' +
-    'Write the report in plain prose. No JSON. No markdown code blocks.\n' +
-    'Label sections clearly as INTERNATIONAL STORIES and LOCAL HK STORIES.\n' +
-    'If a section has no stories even after checking all ranks, write "NO STORIES FOUND" for that section.';
+    'Find the top ' + count + ' international and top ' + count + ' local HK qualifying stories.\n\n' +
+    'For each story write:\n' +
+    'HEADLINE: [headline]\n' +
+    'TIME: [e.g. "3 hours ago" as shown by the source]\n' +
+    'COVERING SOURCES: [source name and position rank for each source covering it]\n' +
+    'FREE SOURCES: [non-paywalled sources only]\n' +
+    'SUMMARY: [70 words max: what happened, why it matters, what comes next]\n\n' +
+    'Plain text only. No JSON. Label sections INTERNATIONAL STORIES and LOCAL HK STORIES.';
 }
 
-function structurePrompt(researchReport, type, isFirstRun) {
+function call2Prompt(trendReport) {
+  return 'You are a URL retrieval assistant. A news trend report is provided below.\n\n' +
+    'TREND REPORT:\n' + trendReport + '\n\n' +
+    'TASK: For each story and each source listed, do a targeted search to find the exact article URL.\n' +
+    'Search using: site:[domain] [headline keywords]\n' +
+    'Example: site:reuters.com "US Iran ceasefire talks"\n\n' +
+    'APPROVED DOMAINS ONLY: reuters.com, bbc.com, bloomberg.com, nytimes.com, cnn.com, wsj.com, cnbc.com, foxnews.com, foxbusiness.com, ft.com, scmp.com, rthk.hk, hket.com, mingpao.com, hkt.com, on.cc, thestandard.com.hk\n\n' +
+    'RULES:\n' +
+    '- URL must be a specific article page, NOT a homepage or section index.\n' +
+    '- WSJ, Bloomberg, FT are paywalled — retrieve URL if possible but mark paywalled: yes.\n' +
+    '- If no article URL found for a source, write NOT FOUND.\n' +
+    '- Never use URLs from unapproved domains.\n\n' +
+    'For each story output exactly:\n' +
+    'STORY: [headline]\n' +
+    'URLS:\n' +
+    '  - [Source Name] | paywalled:[yes/no] | [article URL or NOT FOUND]\n' +
+    'BEST FREE URL: [best article URL from a non-paywalled source]\n\n' +
+    'Plain text only. No JSON.';
+}
+
+function call3Prompt(trendReport, urlReport, type, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 3;
   const firstRunNote = isFirstRun
-    ? 'CRITICAL: This was a first run. Both international and local arrays MUST be non-empty. Return at least one story per section.'
-    : 'If a section had no qualifying stories, its array may be empty with the corresponding no_update flag set.';
-
-  return 'You are a data formatter. Convert the news research report below into a JSON object.\n\n' +
-    'RESEARCH REPORT:\n' + researchReport + '\n\n' +
-    'OUTPUT RULES:\n' +
-    '- Return a single valid JSON object only. No markdown. No explanation. No code fences.\n' +
+    ? 'CRITICAL: First run — both international and local arrays must be non-empty. Do not return empty arrays.'
+    : 'Empty arrays are allowed if no stories qualified.';
+  return 'You are a data formatter. Convert the reports below into a single JSON object.\n\n' +
+    'TREND REPORT:\n' + trendReport + '\n\n' +
+    'URL REPORT:\n' + urlReport + '\n\n' +
+    'JSON SCHEMA (return this exact structure):\n' +
+    '{ "international": [ { "headline": "...", "time": "X hours ago", "summary": "...", "source_count": N, "sources": [ { "name": "Reuters", "position": 1, "url": "https://reuters.com/...", "paywalled": false } ], "url": "https://..." } ], "local": [ ... ] }\n\n' +
+    'RULES:\n' +
+    '- Return ONE valid JSON object only. No markdown. No explanation. No code fences. Start with { end with }.\n' +
     '- ' + firstRunNote + '\n' +
-    '- international: array of up to ' + count + ' story objects\n' +
-    '- local: array of up to ' + count + ' story objects\n' +
-    '- Each story: { "headline":"...", "time":"X hours ago", "summary":"...", "source_count": N, "sources":[{"name":"...","position":1,"url":"..."}], "url":"..." }\n' +
-    '- time: how long ago published as reported by the source (e.g. "3 hours ago"). Use "unknown" if not found.\n' +
-    '- source_count: integer — total number of listed sources covering this story\n' +
-    '- If international was empty in report: "no_update_intl": true, "international": []\n' +
-    '- If local was empty in report: "no_update_local": true, "local": []\n' +
-    '- summary: 70 words max\n' +
-    '- sources: only from approved list (Reuters, BBC, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News, SCMP, RTHK, HKET, Ming Pao, HKT, On.cc, The Standard)\n' +
-    '- Every source object must include name, position, AND url. If url not found, use the source homepage.\n\n' +
-    'Return only the JSON object starting with { and ending with }.';
+    '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
+    '- paywalled: true for WSJ, Bloomberg, FT. false for all others.\n' +
+    '- story-level url: best free article URL. Never a homepage. Never paywalled.\n' +
+    '- source url: exact article URL from URL report. If NOT FOUND and free source, use source homepage.\n' +
+    '- source_count: total approved sources covering this story.\n' +
+    '- summary: 70 words max.\n' +
+    '- If international empty: add "no_update_intl": true\n' +
+    '- If local empty: add "no_update_local": true\n';
 }
+
 
 // ── STATE ──
 let digestStore = { morning: null, evening: null };
@@ -318,13 +334,17 @@ async function runDigest(type) {
     const today = new Date().toDateString();
     const isFirstRun = !existingRecord || new Date(existingRecord.fetchedAt).toDateString() !== today;
 
-    // CALL 1: Research with Google Search grounding
-    updateSpinner('Searching live headlines…');
-    const report = await callGeminiGrounded(gemKey, researchPrompt(type, morningHeadlines, isFirstRun));
+    // CALL 1: Identify trending stories (grounded)
+    updateSpinner('Searching latest headlines…');
+    const trendReport = await callGeminiGrounded(gemKey, call1Prompt(type, morningHeadlines, isFirstRun));
 
-    // CALL 2: Structure into JSON without grounding
+    // CALL 2: Retrieve exact article URLs (grounded)
+    updateSpinner('Finding article links…');
+    const urlReport = await callGeminiGrounded(gemKey, call2Prompt(trendReport.substring(0, 4000)));
+
+    // CALL 3: Structure into JSON (no grounding)
     updateSpinner('Structuring results…');
-    const parsed = await callGeminiStructured(gemKey, structurePrompt(report, type, isFirstRun));
+    const parsed = await callGeminiStructured(gemKey, call3Prompt(trendReport.substring(0, 3000), urlReport.substring(0, 3000), type, isFirstRun));
 
     // Merge new results with existing using combined pool logic
     const merged = mergeDigests(digestStore[type], parsed);
@@ -341,8 +361,6 @@ async function runDigest(type) {
 }
 
 // ── CALL 1: GROUNDED (research) with retry + fallback ──
-const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-
 async function callGeminiGrounded(key, prompt) {
   let lastError = null;
   for (const model of MODELS) {
@@ -421,7 +439,7 @@ async function callGeminiStructured(key, prompt) {
   let lastError = null;
   for (const model of MODELS) {
     try {
-      updateSpinner('Structuring results' + (model === MODELS[0] ? '' : ' (retry)') + '...');
+      updateSpinner('Structuring digest' + (model === MODELS[0] ? '' : ' (retry)') + '...');
       const res = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + key,
         {
@@ -591,9 +609,13 @@ function makeCard(item, type, num, restored) {
   const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
   const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
 
-  const sources = item.sources && item.sources.length ? item.sources : [{ name: 'Source unknown', position: null, url: null }];
+  const sources = item.sources && item.sources.length ? item.sources : [{ name: 'Source unknown', position: null, url: null, paywalled: false }];
   const chips = sources.map(s => {
     const pos = s.position ? ' #' + s.position : '';
+    const isPaywalled = s.paywalled || PAYWALLED_SOURCES.includes(s.name);
+    // Paywalled sources: show chip but never hyperlink
+    if (isPaywalled) return '<span class="source-chip source-chip-paywall" title="Paywalled">' + s.name + pos + ' 🔒</span>';
+    // Free sources: always hyperlink — use article URL, fall back to homepage
     const href = s.url || SOURCE_HOMES[s.name] || null;
     if (href) return '<a class="source-chip source-chip-link" href="' + href + '" target="_blank">' + s.name + pos + '</a>';
     return '<span class="source-chip">' + s.name + pos + '</span>';
@@ -636,7 +658,7 @@ function copyDigest(type) {
   if (intl.length) {
     text += '🌍 INTERNATIONAL\n\n';
     intl.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
+      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')).join(', ');
       text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
     });
   } else {
@@ -646,7 +668,7 @@ function copyDigest(type) {
   if (local.length) {
     text += '🇭🇰 LOCAL HK\n\n';
     local.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
+      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')).join(', ');
       text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
     });
   } else {
