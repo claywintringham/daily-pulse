@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/digest.js": {
+      "maxDuration": 60
+    }
+  }
+}
