@@ -370,16 +370,20 @@ async function callGeminiGrounded(key, prompt) {
         }
       }
       if (!text.trim()) {
-        // Show what structure we actually got for debugging
+        // Check finishReason to understand why parts are empty
+        const reason = data.candidates?.[0]?.finishReason || 'unknown';
         const keys = Object.keys(data).join(', ');
-        const candidateInfo = data.candidates ? data.candidates.map((c,i) => {
-          const pcount = c?.content?.parts?.length || 0;
-          const ptypes = (c?.content?.parts || []).map(p => Object.keys(p).join('+')).join(', ');
-          return 'candidate[' + i + ']: ' + pcount + ' parts (' + ptypes + ')';
-        }).join(' | ') : 'no candidates';
-        lastError = new Error('Empty text from ' + model + '. Keys: ' + keys + '. ' + candidateInfo);
+        const pcount = data.candidates?.[0]?.content?.parts?.length || 0;
+        // SAFETY or RECITATION blocks mean we should try fallback model
+        if (reason === 'SAFETY' || reason === 'RECITATION' || pcount === 0) {
+          lastError = new Error('No content returned (' + reason + ') from ' + model + '. Keys: ' + keys);
+          continue;
+        }
+        lastError = new Error('Empty text from ' + model + '. Reason: ' + reason);
         continue;
       }
+      // Truncate report to prevent Call 2 prompt overflow (max 6000 chars)
+      if (text.length > 6000) text = text.substring(0, 6000) + '\n[truncated]';
       return text;
     } catch(e) {
       lastError = e;
@@ -403,7 +407,7 @@ async function callGeminiStructured(key, prompt) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }], role: 'user' }],
-            generationConfig: { temperature: 0.0, maxOutputTokens: 16000, responseMimeType: 'application/json' }
+            generationConfig: { temperature: 0.0, maxOutputTokens: 8000 }
           })
         }
       );
@@ -419,25 +423,32 @@ async function callGeminiStructured(key, prompt) {
       const raw = parts.filter(p => p.text).map(p => p.text).join('').trim();
       if (!raw) { lastError = new Error('Empty structure response.'); continue; }
       const clean = raw.replace(/```json|```/gi, '').trim();
+
+      // Try greedy match first
       const match = clean.match(/\{[\s\S]*\}/);
-      if (!match) { lastError = new Error('No JSON found: ' + clean.substring(0, 80)); continue; }
-      try {
-        return JSON.parse(match[0]);
-      } catch(e) {
-        let depth = 0, start = -1, result = null;
+      let parsed = null;
+
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch(e) {}
+      }
+
+      // Fallback: brace-counting parser to find outermost complete object
+      if (!parsed) {
+        let depth = 0, start = -1;
         for (let i = 0; i < clean.length; i++) {
           if (clean[i] === '{') { if (depth === 0) start = i; depth++; }
           else if (clean[i] === '}') {
             depth--;
             if (depth === 0 && start !== -1) {
-              try { result = JSON.parse(clean.substring(start, i + 1)); break; } catch(e2) {}
+              try { parsed = JSON.parse(clean.substring(start, i + 1)); break; } catch(e2) {}
             }
           }
         }
-        if (result) return result;
-        lastError = new Error('JSON parse failed: ' + clean.substring(0, 80));
-        continue;
       }
+
+      if (parsed) return parsed;
+      lastError = new Error('Could not parse response. Try again in a moment.');
+      continue;
     } catch(e) {
       lastError = e;
       if (e.message && (e.message.toLowerCase().includes('demand') || e.message.toLowerCase().includes('overload'))) continue;
