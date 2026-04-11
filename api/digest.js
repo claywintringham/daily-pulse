@@ -1,31 +1,28 @@
-// Daily Pulse — Vercel Serverless Function
+// Daily Pulse â Vercel Serverless Function
 // Handles all three Gemini calls server-side with URL validation
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-
 const PAYWALLED = ['WSJ', 'Bloomberg', 'FT'];
 const APPROVED_DOMAINS = [
   'reuters.com', 'bbc.com', 'bloomberg.com', 'nytimes.com', 'cnn.com',
   'wsj.com', 'cnbc.com', 'foxnews.com', 'foxbusiness.com', 'ft.com',
   'apnews.com', 'theguardian.com', 'nbcnews.com',
-  'scmp.com', 'rthk.hk', 'hket.com', 'mingpao.com', 'hkt.com',
-  'on.cc', 'thestandard.com.hk', 'hongkongfp.com'
+  'scmp.com', 'rthk.hk', 'hket.com', 'mingpao.com', 'hkt.com', 'on.cc',
+  'thestandard.com.hk', 'hongkongfp.com'
 ];
-
 const INTL_SOURCES = 'Reuters (reuters.com), BBC (bbc.com), Bloomberg (bloomberg.com), ' +
   'NYT (nytimes.com), CNN (cnn.com), WSJ (wsj.com), CNBC (cnbc.com), ' +
   'Fox News (foxnews.com), Fox Business (foxbusiness.com), FT (ft.com), ' +
   'AP (apnews.com), The Guardian (theguardian.com), NBC News (nbcnews.com)';
-
 const LOCAL_SOURCES = 'SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), ' +
   'Ming Pao (mingpao.com), HKT (hkt.com), On.cc (on.cc), ' +
   'The Standard (thestandard.com.hk), HKFP (hongkongfp.com)';
-
 const FORBIDDEN = 'Al Jazeera, Anadolu Agency, The News Pakistan, Kurdistan24, ' +
   'Local Gazette, Global News, Times of India, or any outlet not in the approved lists';
 
-// ── URL VALIDATION ──
+// ââ URL VALIDATION ââ
+
 function isApprovedDomain(url) {
   if (!url || url === 'NOT FOUND') return false;
   try {
@@ -52,14 +49,18 @@ async function verifyUrl(url) {
   } catch { return false; }
 }
 
-// ── GEMINI API CALL ──
+// ââ GEMINI API CALL ââ
+
 async function callGemini(prompt, useGrounding) {
   let lastError = null;
   for (const model of MODELS) {
     try {
       const body = {
         contents: [{ parts: [{ text: prompt }], role: 'user' }],
-        generationConfig: { temperature: useGrounding ? 0.1 : 0.0, maxOutputTokens: useGrounding ? 3000 : 8000 }
+        generationConfig: {
+          temperature: useGrounding ? 0.1 : 0.0,
+          maxOutputTokens: useGrounding ? 3000 : 8000
+        }
       };
       if (useGrounding) body.tools = [{ google_search: {} }];
       if (!useGrounding) body.generationConfig.responseMimeType = 'application/json';
@@ -73,7 +74,8 @@ async function callGemini(prompt, useGrounding) {
       if (!res.ok) {
         const msg = data?.error?.message || '';
         if (res.status === 429 || res.status === 503 || msg.toLowerCase().includes('demand')) {
-          lastError = new Error(msg); continue;
+          lastError = new Error(msg);
+          continue;
         }
         throw new Error(msg || 'Gemini API error');
       }
@@ -82,7 +84,7 @@ async function callGemini(prompt, useGrounding) {
       const parts = data.candidates?.[0]?.content?.parts || [];
       let text = parts.filter(p => p.text).map(p => p.text).join('\n');
 
-      // STOP with empty parts — try grounding supports
+      // STOP with empty parts â try grounding supports
       if (!text.trim()) {
         const supports = data.candidates?.[0]?.groundingMetadata?.groundingSupports || [];
         text = supports.map(s => s?.segment?.text || '').filter(Boolean).join('\n');
@@ -90,7 +92,40 @@ async function callGemini(prompt, useGrounding) {
 
       if (!text.trim()) {
         const reason = data.candidates?.[0]?.finishReason || 'unknown';
-        lastError = new Error('Empty response (reason: ' + reason + ') from ' + model);
+
+        // STOP = grounding consumed response budget; wait 3s and retry same model with shorter prompt
+        if (useGrounding && reason === 'STOP') {
+          await new Promise(r => setTimeout(r, 3000));
+          const shortPrompt = prompt.length > 800
+            ? prompt.substring(0, 800) + '\n\nBe brief. List key stories only with headlines and sources.'
+            : prompt;
+          try {
+            const retryRes = await fetch(
+              'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_KEY,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: shortPrompt }], role: 'user' }],
+                  tools: [{ google_search: {} }],
+                  generationConfig: { temperature: 0.1, maxOutputTokens: 2000 }
+                })
+              }
+            );
+            const retryData = await retryRes.json();
+            if (retryRes.ok) {
+              const rParts = retryData.candidates?.[0]?.content?.parts || [];
+              let rText = rParts.filter(p => p.text).map(p => p.text).join('\n');
+              if (!rText.trim()) {
+                const rSupports = retryData.candidates?.[0]?.groundingMetadata?.groundingSupports || [];
+                rText = rSupports.map(s => s?.segment?.text || '').filter(Boolean).join('\n');
+              }
+              if (rText.trim()) return rText;
+            }
+          } catch(_) { /* fall through to next model */ }
+        }
+
+        lastError = new Error('Grounding returned no text (' + reason + ') from ' + model + '.');
         continue;
       }
 
@@ -104,18 +139,22 @@ async function callGemini(prompt, useGrounding) {
   throw lastError || new Error('All models failed');
 }
 
-// ── PROMPTS ──
+// ââ PROMPTS ââ
+
 function call1Prompt(type, morningHeadlines, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 2;
   const recency = isEvening ? '6 hours' : '12 hours';
-  const today = new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const today = new Date().toLocaleDateString('en-HK', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric'
+  });
   const firstRunRule = isFirstRun
     ? 'CRITICAL FIRST RUN: You MUST return at least one international AND one local story. Empty sections are strictly forbidden. Descend to top 4, 5, 6 and beyond until real stories are found. Never invent placeholder content.'
     : 'If no qualifying story exists, mark that section as no update.';
   const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
     ? 'EXCLUDE these morning stories:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
     : '';
+
   return 'You are Daily Pulse, a news digest for a Hong Kong reader. Today is ' + today + '.\n\n' +
     'TASK: Find the most repeated top headlines published within the LAST ' + recency + ' ONLY. Use ONLY approved sources. Never use ' + FORBIDDEN + '.\n\n' +
     'INTERNATIONAL SOURCES: ' + INTL_SOURCES + '\n' +
@@ -168,7 +207,7 @@ function call3Prompt(trendReport, urlReport, type, isFirstRun) {
     'STRICT RULES:\n' +
     '- ' + firstRunNote + '\n' +
     '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
-    '- ONLY include sources from the approved list. Reject AP News, Global News, Local Gazette, or any unapproved source.\n' +
+    '- ONLY include sources from the approved list. Reject AP News, Global News, Local Gazette, Local Reporter, or any unapproved source.\n' +
     '- paywalled: true for WSJ, Bloomberg, FT only.\n' +
     '- story url: best free article URL. Never a homepage. Never paywalled URL.\n' +
     '- source url: from URL report only. If NOT FOUND and free, use source homepage as last resort.\n' +
@@ -179,29 +218,44 @@ function call3Prompt(trendReport, urlReport, type, isFirstRun) {
     '- Return ONLY the JSON object. No markdown. No explanation.';
 }
 
-// ── VALIDATE AND CLEAN RESPONSE ──
+// ââ APPROVED SOURCE NAMES (for validation) ââ
+const APPROVED_SOURCE_NAMES = [
+  'Reuters', 'BBC', 'Bloomberg', 'NYT', 'CNN', 'WSJ', 'CNBC',
+  'Fox News', 'Fox Business', 'FT', 'AP', 'The Guardian', 'NBC News',
+  'SCMP', 'RTHK', 'HKET', 'Ming Pao', 'HKT', 'On.cc', 'The Standard', 'HKFP'
+];
+
+// ââ VALIDATE AND CLEAN RESPONSE ââ
+
 async function validateAndClean(parsed) {
   async function cleanSection(stories) {
     if (!stories || !stories.length) return [];
     const cleaned = [];
     for (const story of stories) {
-      // Validate sources — strip any not in approved list
+      // Validate sources â strip any not in approved list
       const validSources = (story.sources || []).filter(s => {
-        const name = s.name || '';
+        const name = (s.name || '').trim();
+        // Check against exact approved names
+        if (APPROVED_SOURCE_NAMES.includes(name)) return true;
+        // Check against domain matching as fallback
         return APPROVED_DOMAINS.some(d => {
           const src = name.toLowerCase().replace(/\s/g, '');
           return d.includes(src) || src.includes(d.split('.')[0]);
-        }) || ['Reuters','BBC','Bloomberg','NYT','CNN','WSJ','CNBC','Fox News',
-               'Fox Business','FT','AP','The Guardian','NBC News','SCMP','RTHK',
-               'HKET','Ming Pao','HKT','On.cc','The Standard','HKFP'].includes(name);
+        });
       });
 
       // Strip sources with unapproved domains
-      const approvedSources = validSources.filter(s => !s.url || isApprovedDomain(s.url));
+      const approvedSources = validSources.filter(s => !s.url || s.url === 'NOT FOUND' || isApprovedDomain(s.url));
 
       // Must have at least one valid free source
       const hasFreeSource = approvedSources.some(s => !s.paywalled);
       if (!hasFreeSource) continue;
+
+      // Reject fabricated stories: example.com, "placeholder" text, or "local news update" headlines
+      if ((story.url || '').includes('example.com')) continue;
+      if ((story.summary || '').toLowerCase().includes('placeholder')) continue;
+      if ((story.headline || '').toLowerCase().includes('local news update')) continue;
+      if ((story.headline || '').toLowerCase().includes('placeholder')) continue;
 
       // Verify story-level URL
       let storyUrl = story.url;
@@ -211,12 +265,13 @@ async function validateAndClean(parsed) {
         storyUrl = freeSource ? freeSource.url : null;
       }
 
-      // Skip entirely fabricated stories (example.com, placeholder text)
-      if (storyUrl && storyUrl.includes('example.com')) continue;
-      if ((story.summary || '').toLowerCase().includes('placeholder')) continue;
-      if ((story.headline || '').toLowerCase().includes('local news update')) continue;
+      // Clean source URLs: replace NOT FOUND with null
+      const cleanedSources = approvedSources.map(s => ({
+        ...s,
+        url: (s.url === 'NOT FOUND' || !isApprovedDomain(s.url)) ? null : s.url
+      }));
 
-      cleaned.push({ ...story, sources: approvedSources, url: storyUrl });
+      cleaned.push({ ...story, sources: cleanedSources, url: storyUrl });
     }
     return cleaned;
   }
@@ -229,16 +284,21 @@ async function validateAndClean(parsed) {
   };
 }
 
-// ── MAIN HANDLER ──
+// ââ MAIN HANDLER ââ
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
   if (!GEMINI_KEY) {
-    res.status(500).json({ error: 'GEMINI_API_KEY not configured on server.' });
+    res.status(500).json({ error: 'Server configuration error. Please contact the administrator.' });
     return;
   }
 
@@ -247,7 +307,7 @@ export default async function handler(req, res) {
     : { type: req.query.type, morningHeadlines: [], isFirstRun: true };
 
   if (!type || !['morning', 'evening'].includes(type)) {
-    res.status(400).json({ error: 'Invalid type. Must be morning or evening.' });
+    res.status(400).json({ error: 'Invalid request.' });
     return;
   }
 
@@ -278,15 +338,16 @@ export default async function handler(req, res) {
       if (!match) throw new Error('No JSON found');
       parsed = JSON.parse(match[0]);
     } catch(e) {
-      res.status(500).json({ error: 'Failed to parse Gemini response: ' + e.message });
+      console.error('Daily Pulse JSON parse error:', e.message);
+      res.status(500).json({ error: "Couldn't fetch headlines right now. Please try again in a moment." });
       return;
     }
 
     // Validate and clean
     const validated = await validateAndClean(parsed);
-
     res.status(200).json(validated);
   } catch(e) {
-    res.status(500).json({ error: e.message || 'Unknown server error' });
+    console.error('Daily Pulse digest error:', e.message);
+    res.status(500).json({ error: "Couldn't fetch headlines right now. Please try again in a moment." });
   }
 }
