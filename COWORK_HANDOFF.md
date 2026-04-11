@@ -1,81 +1,132 @@
 # Daily Pulse — Cowork Development Handoff
 
 ## Your Mission
-You are the sole developer of the Daily Pulse web app. Your job is to fix bugs, test the live app, and commit working code to the GitHub repository. Work autonomously in a loop: fix → commit → test → fix again until all issues are resolved.
+You are the sole developer of the Daily Pulse web app. Fix bugs, test the live app, and commit working code to the GitHub repository. Work autonomously in a loop: fix → commit → test → fix again until all issues are resolved and the testing checklist passes consistently.
 
 ---
 
-## Repository
-**GitHub repo:** `https://github.com/claywintringham/daily-pulse`
-**Live app URL:** `https://claywintringham.github.io/daily-pulse/daily-pulse.html`
-**File to edit:** `daily-pulse.html` (single file, entire app)
+## Repository & URLs
+- **GitHub repo:** `https://github.com/claywintringham/daily-pulse`
+- **Live app:** `https://daily-pulse-theta.vercel.app/daily-pulse.html`
+- **API endpoint:** `https://daily-pulse-theta.vercel.app/api/digest`
+- **Vercel project:** `daily-pulse-theta.vercel.app` (auto-deploys on every GitHub push to main)
+
+## File Structure
+```
+daily-pulse/
+├── daily-pulse.html      ← frontend UI only, no API key
+├── api/
+│   └── digest.js         ← Vercel serverless function, all Gemini calls
+├── SKILL.md              ← coding workflow rules
+└── COWORK_HANDOFF.md     ← this file
+```
 
 ---
 
-## App Overview
-Daily Pulse is a single-file iPhone PWA that fetches live news headlines for a Hong Kong reader using the Gemini API with Google Search grounding. It makes three sequential API calls per run:
+## Architecture Overview
 
-- **Call 1 (grounded):** Gemini searches the web and identifies the most repeated top headlines from approved sources published in the last 12h (morning) or 6h (evening). Returns plain text report.
-- **Call 2 (grounded):** Gemini does targeted `site:domain headline` searches to find exact article URLs for each story from each source. Returns plain text URL report.
-- **Call 3 (no grounding):** Gemini receives both reports and structures everything into clean JSON. Uses `responseMimeType` is NOT set — JSON is extracted via greedy regex + brace-counting parser.
+### Frontend (`daily-pulse.html`)
+Pure UI. No Gemini API key. Makes a single POST request to `/api/digest` and renders the response. Handles persistence via localStorage, merge logic, and card rendering.
 
-**Morning run:** 3 international + 3 local HK headlines
-**Evening run:** 1 international + 1 local HK headline (different from morning's)
+### Backend (`api/digest.js`)
+Vercel serverless function. Handles all three Gemini calls:
+- **Call 1 (grounded):** Identifies trending stories from approved sources published within recency window
+- **Call 2 (grounded):** Targeted `site:domain` searches to find exact article URLs per story per source
+- **Call 3 (no grounding):** Structures everything into validated JSON
+
+Also handles:
+- URL validation (rejects homepages, unapproved domains, placeholder content)
+- Forbidden source rejection
+- Model fallback (gemini-2.5-flash → gemini-2.5-flash-lite on overload)
+
+### Environment Variable
+`GEMINI_API_KEY` is set in Vercel dashboard under Settings → Environment Variables. Never put it in code.
+
+### API Contract
+**Request:** `POST /api/digest`
+```json
+{ "type": "morning", "morningHeadlines": [], "isFirstRun": true }
+```
+**Response:**
+```json
+{
+  "international": [
+    {
+      "headline": "...",
+      "time": "3 hours ago",
+      "summary": "...",
+      "source_count": 4,
+      "sources": [{"name": "Reuters", "position": 1, "url": "https://reuters.com/...", "paywalled": false}],
+      "url": "https://reuters.com/..."
+    }
+  ],
+  "local": [...],
+  "no_update_intl": false,
+  "no_update_local": false
+}
+```
 
 ---
 
 ## Source Lists
 
-**International (approved only):**
-Reuters (reuters.com), BBC (bbc.com), Bloomberg (bloomberg.com), NYT (nytimes.com), CNN (cnn.com), WSJ (wsj.com), CNBC (cnbc.com), Fox News (foxnews.com), Fox Business (foxbusiness.com), FT (ft.com)
+**International (13 sources):**
+Reuters (reuters.com), BBC (bbc.com), Bloomberg (bloomberg.com), NYT (nytimes.com), CNN (cnn.com), WSJ (wsj.com), CNBC (cnbc.com), Fox News (foxnews.com), Fox Business (foxbusiness.com), FT (ft.com), AP (apnews.com), The Guardian (theguardian.com), NBC News (nbcnews.com)
 
-**Local HK (approved only):**
-SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), Ming Pao (mingpao.com), HKT (hkt.com), On.cc (on.cc), The Standard (thestandard.com.hk)
+**Local HK (8 sources):**
+SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), Ming Pao (mingpao.com), HKT (hkt.com), On.cc (on.cc), The Standard (thestandard.com.hk), HKFP (hongkongfp.com)
 
 **Paywalled (chip shown with 🔒, never hyperlinked):** WSJ, Bloomberg, FT
-**Free (chip always hyperlinked to specific article):** all others
 
-**Forbidden sources (must never appear):** Al Jazeera, AP, Anadolu Agency, The News Pakistan, Kurdistan24, or any unlisted outlet
+**Forbidden (must never appear):** Al Jazeera, Anadolu Agency, The News Pakistan, Kurdistan24, Local Gazette, Global News, Times of India, or any outlet not in the approved lists
 
 ---
 
 ## Business Logic Rules
 
-1. **First run of the day:** Must always return at least one international AND one local story. Never empty. Keep descending ranks (top 4, 5, 6...) until stories are found.
-2. **Subsequent runs same day:** Merge new results with existing using combined pool — rank by `source_count` descending; equal counts favour the newer (more recent) story. Keep top 3.
-3. **Story qualification:** Must appear in top 3 positions of at least 3 approved sources, AND be covered by at least one free source.
-4. **Recency:** Morning = last 12 hours only. Evening = last 6 hours only. Reject older stories.
-5. **Paywall rule:** WSJ, Bloomberg, FT chips show with 🔒 but are never hyperlinked. All free source chips must be hyperlinked to a specific article (not homepage).
-6. **Read full article:** Always links to best free source article URL.
-7. **Story time:** Show "X hours ago" as reported by the news source on each card, in accent colour.
-8. **Evening exclusion:** Evening digest must not repeat morning stories.
-9. **Persistence:** Both morning and evening digests saved to localStorage, restored on app reopen with date + time stamps.
+1. **Morning:** 2 international + 2 local HK headlines
+2. **Evening:** 1 international + 1 local HK headline (different from morning's)
+3. **First run of the day:** Must always return at least 1 intl AND 1 local. Never empty. Keep descending ranks until found. Never invent placeholder content.
+4. **Subsequent runs:** Merge with existing using combined pool — rank by source_count desc; equal counts favour newer story. Keep top 2 (morning) or top 1 (evening).
+5. **Story qualification:** Must appear in top 3 positions of at least 3 approved sources AND be covered by at least one free source.
+6. **Recency:** Morning = last 12 hours only. Evening = last 6 hours only. Reject older stories.
+7. **Paywalled sources:** WSJ, Bloomberg, FT chips show with 🔒 but are never hyperlinked.
+8. **Free source chips:** Always hyperlinked to specific article URL (not homepage). Fall back to source homepage only if no article URL found.
+9. **Read full article:** Always links to best free source article. Never a homepage. Never paywalled.
+10. **Story time:** Show "Published X hours ago" in accent colour on each card.
+11. **Evening exclusion:** Evening digest must not repeat morning stories.
+12. **Persistence:** Both morning and evening digests saved to localStorage, restored on app reopen.
+13. **Session guard:** Stale async responses (from previous runs) must be ignored using session token.
+14. **No fabrication:** Any story where the source name is not in the approved list, or the URL is example.com or contains "placeholder", must be rejected before saving.
 
 ---
 
-## Development Workflow (follow every time before committing)
+## Development Workflow
 
-### Step 1 — Make the edit
-Use surgical string replacement. Never rewrite the whole file unless necessary. Verify each replacement succeeded before continuing.
+### Step 1 — Identify which file to edit
+- Bug in API calls, URL validation, prompt logic, source filtering → edit `api/digest.js`
+- Bug in UI rendering, card display, copy, persistence, merge → edit `daily-pulse.html`
 
-### Step 2 — Syntax checks
+### Step 2 — Make the edit
+Use surgical string replacement. Never rewrite the whole file unless necessary. Verify each replacement succeeded.
+
+### Step 3 — Syntax checks (for `daily-pulse.html` JS changes)
 ```python
 import re
 with open('daily-pulse.html', 'r') as f:
     content = f.read()
 script_content = re.search(r'<script>([\s\S]*?)</script>', content).group(1)
 backticks = script_content.count('`')
-opens     = script_content.count('{')
-closes    = script_content.count('}')
-parens_o  = script_content.count('(')
-parens_c  = script_content.count(')')
+opens = script_content.count('{')
+closes = script_content.count('}')
+parens_o = script_content.count('(')
+parens_c = script_content.count(')')
 print(f"Backticks: {backticks} ({'OK' if backticks % 2 == 0 else 'UNBALANCED'})")
-print(f"Braces:    {opens}/{closes} ({'OK' if opens == closes else 'UNBALANCED'})")
-print(f"Parens:    {parens_o}/{parens_c} ({'OK' if parens_o == parens_c else 'UNBALANCED'})")
+print(f"Braces: {opens}/{closes} ({'OK' if opens == closes else 'UNBALANCED'})")
+print(f"Parens: {parens_o}/{parens_c} ({'OK' if parens_o == parens_c else 'UNBALANCED'})")
 ```
-**Do not commit if any check fails.**
 
-### Step 3 — Runtime JS check
+### Step 4 — Runtime JS check (for `daily-pulse.html` JS changes)
 ```python
 import re, subprocess, tempfile, os
 with open('daily-pulse.html', 'r') as f:
@@ -95,107 +146,100 @@ const fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) 
 '''
 wrapped = stub + '\n(function() {\n' + script_content + '\n})();'
 with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
-    f.write(wrapped)
-    tmpfile = f.name
+    f.write(wrapped); tmpfile = f.name
 result = subprocess.run(['node', '--check', tmpfile], capture_output=True, text=True)
 os.unlink(tmpfile)
 print("✅ Runtime OK" if result.returncode == 0 else "❌ " + result.stderr)
 ```
-**Do not commit if this fails.**
 
-### Step 4 — Integrity check
-Verify all of the following strings are present in the file:
+### Step 5 — Integrity check
+Verify these strings are present in `daily-pulse.html`:
 ```
-function call1Prompt
-function call2Prompt
-function call3Prompt
-function mergeDigests
-function renderSection
-function makeCard
-function copyDigest
-function callGeminiGrounded
-function callGeminiStructured
-function runDigest
-function restoreDigests
-PAYWALLED_SOURCES
-foxbusiness.com
-ft.com
-CRITICAL FIRST RUN
-source-chip-paywall
-card-time
-SOURCE_HOMES
-mergeDigests(
-call1Prompt(
-call2Prompt(
-call3Prompt(
-no_update_intl
-no_update_local
-gemini-2.5-flash-lite
-google_search
-dp_gemini_key
-dp_digests
-Copy Morning to Capacities
-Copy Evening to Capacities
+API_BASE, daily-pulse-theta.vercel.app, PAYWALLED_SOURCES, SOURCE_HOMES,
+function runDigest, function mergeDigests, function renderSection,
+function makeCard, function copyDigest, function restoreDigests,
+currentSession, no_update_intl, no_update_local, source-chip-paywall,
+card-time, Copy Morning to Capacities, Copy Evening to Capacities,
+dp_digests, updateSubtitles
 ```
-**Do not commit if any are missing.**
 
-### Step 5 — Commit and push
-Commit with a title under 50 characters. Push to `main` branch. Wait 60 seconds for GitHub Pages to deploy.
+Verify these strings are present in `api/digest.js`:
+```
+GEMINI_KEY, PAYWALLED, APPROVED_DOMAINS, foxbusiness.com, hongkongfp.com,
+apnews.com, theguardian.com, nbcnews.com, isArticleUrl, isApprovedDomain,
+verifyUrl, validateAndClean, call1Prompt, call2Prompt, call3Prompt,
+callGemini, placeholder, example.com, export default,
+Access-Control-Allow-Origin
+```
 
-### Step 6 — Test the live app
-Open `https://claywintringham.github.io/daily-pulse/daily-pulse.html` in a browser.
+### Step 6 — Commit and push
+- Title: under 50 characters, imperative tense, no full stop
+- Description: bullet points, what changed and why, under 100 words
+- Push to `main` branch
+- Vercel auto-deploys — wait 30 seconds for deployment to complete
+
+### Step 7 — Test the live app
+Open `https://daily-pulse-theta.vercel.app/daily-pulse.html` in a browser.
 - Tap ☀️ Morning — wait up to 90 seconds
-- Record: success or exact error message
-- If success: check all items in the testing checklist below
-- Repeat 3 times minimum
+- Record result: success or exact error message
+- If success: run the testing checklist below
+- Repeat 3 times minimum before declaring a fix successful
 
-### Step 7 — If errors found, go back to Step 1
+### Step 8 — If issues found, return to Step 1
 
 ---
 
-## Testing Checklist (check after every successful run)
+## Testing Checklist
 
-- [ ] Headlines are recent — all show "X hours ago" label in accent colour
-- [ ] At least 1 international + 1 local HK headline on first run (never empty)
-- [ ] No forbidden sources appear (Al Jazeera, AP, Anadolu, etc.)
+Run after every successful fetch. All must pass before declaring the app stable.
+
+- [ ] Headlines are recent — "Published X hours ago" visible on every card in accent colour
+- [ ] At least 1 intl + 1 local on first run — never empty, never placeholder
+- [ ] No forbidden sources (Al Jazeera, AP News used without approval, Global News, Local Gazette, etc.)
 - [ ] WSJ, Bloomberg, FT chips show 🔒 and are NOT hyperlinked
 - [ ] All free source chips are hyperlinked to specific articles (not homepages)
-- [ ] "Read full article →" links to a specific free-source article
-- [ ] No source links go to unapproved domains
+- [ ] No chip links to an unapproved domain
+- [ ] "Read full article →" links to a specific free-source article (not a homepage, not paywalled)
+- [ ] No hallucinated/fabricated sources or URLs
+- [ ] Summary is complete — never truncated mid-sentence
 - [ ] Evening headlines differ from morning headlines
-- [ ] Digest persists when app is closed and reopened
-- [ ] Both morning and evening sections show date + time fetched
+- [ ] Digest persists on close/reopen with correct timestamps
+- [ ] Button subtitles show actual story counts (e.g. "2 intl · 2 local")
+- [ ] No background fetches running without user action
+- [ ] Error messages are user-friendly (not raw debug strings)
 
 ---
 
-## Known Issues to Fix (start here)
+## Known Issues to Address (in priority order)
 
-These bugs were identified in the last test session and are not yet resolved:
+### 🔴 Critical
+1. **STOP grounding error (dominant failure mode)** — 3/4 runs fail with "Grounding returned no text (STOP)". The STOP handler tries `groundingSupports` but often finds nothing there either. Fix: when STOP returns empty on the primary model, wait 3 seconds and retry the same call once before falling back to the next model. Also try a simpler, shorter prompt on retry.
 
-1. **Stale headlines** — App sometimes surfaces old stories despite the 12h recency rule. Investigate whether Call 1 grounding is respecting the recency constraint. Consider adding `after:` date operator to grounding search queries.
+2. **Fabricated placeholder content** — Gemini invents "Local Reporter" source with `example.com` URL when it can't find real local news. The `validateAndClean` function in `digest.js` should catch this — verify it's working. If not, add an additional check: reject any story where source name is not in the approved list.
 
-2. **Wrong article URLs** — Some source chips link to homepages instead of specific articles. Call 2 targeted `site:domain` searches are not always returning article-level URLs. Consider adding a validation step that rejects any URL that is just a domain root (e.g. `https://reuters.com` with no path).
+3. **Forbidden sources appearing** — AP News, Global News, Times of India appeared in unguarded fetches. Domain validation in `validateAndClean` should strip these — verify it's working after the Vercel migration.
 
-3. **Forbidden sources appearing** — Kurdistan24 and other unlisted sources have appeared in results. Add a URL domain validation step in Call 3 — reject any source whose URL domain is not in the approved domains list.
+### 🟠 High
+4. **Hallucinated article URLs (404s)** — `verifyUrl` in `digest.js` does a HEAD request to verify URLs before returning them. Verify this is being called and working. If a URL returns 404, the function should fall back to the source homepage rather than returning the broken URL.
 
-4. **Intermittent empty first run** — Despite CRITICAL FIRST RUN rule, occasionally returns empty sections on first run. The prompt instruction may need to be even more forceful, or a retry mechanism added that re-runs Call 1 if the result is empty.
+5. **STOP grounding error shown as raw debug text** — Error messages should be user-friendly. Replace all technical error strings with: "Couldn't fetch headlines right now. Please try again in a moment."
 
-5. **STOP finish reason returning empty** — When Gemini returns `finishReason: STOP` with 0 parts, the current fallback extracts from `groundingSupports` which may also be empty. Need a more robust fallback — consider retrying the same call once before falling back to the next model.
+### 🟡 Medium
+6. **Summary truncated mid-sentence** — Call 3 prompt instructs "complete sentences only, never truncate". Verify this instruction is present and that maxOutputTokens (8000) is sufficient.
+
+7. **Duplicate position numbers** — Multiple sources can independently rank the same story #1. This is correct behaviour — update the UI to not imply these are conflicting if needed.
+
+8. **Static "X hours ago" labels** — Story times are fixed at fetch time. Add a note in the digest header: "Fetched at [time] — story times as reported at fetch".
 
 ---
 
-## Commit Message Format
-
-**Title:** Under 50 characters, imperative tense, no full stop
-**Description:** Bullet points only, what changed and why, under 100 words
-
----
-
-## Notes on Gemini API behaviour
-
-- `gemini-2.5-flash` is the primary model; `gemini-2.5-flash-lite` is the fallback on 429/503
-- Google Search grounding and `responseMimeType: application/json` cannot be used together — Call 1 and Call 2 use grounding without JSON mode; Call 3 uses JSON mode without grounding
-- Grounding responses sometimes return text across multiple `parts` — always concatenate all text parts
-- When `finishReason` is `STOP` with empty parts, attempt to extract from `groundingSupports[].segment.text` before failing
-- Research report from Call 1 is truncated to 4000 chars before passing to Call 2, and both are truncated to 3000 chars each before passing to Call 3
+## Gemini API Notes
+- Primary model: `gemini-2.5-flash`
+- Fallback model: `gemini-2.5-flash-lite`
+- Google Search grounding and `responseMimeType: application/json` cannot be used together
+- Call 1 and Call 2 use grounding (no JSON mode)
+- Call 3 uses JSON mode (no grounding, `responseMimeType: application/json`)
+- STOP finish reason with empty parts = grounding consumed response budget; retry or fall back
+- Trend report truncated to 4000 chars before Call 2; both truncated to 3000 chars each before Call 3
+- 429/503 errors = model overloaded; fall back to gemini-2.5-flash-lite
 

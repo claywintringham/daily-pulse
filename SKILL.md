@@ -1,59 +1,65 @@
 ---
 name: daily-pulse-dev
-description: Use this skill when debugging, revising, or delivering updates to the Daily Pulse HTML app. Covers the full workflow from code edits through syntax checks to commit message generation.
+description: Use this skill when debugging, revising, or delivering updates to the Daily Pulse web app. Covers the full workflow from code edits through checks to commit message generation.
 ---
 
 # Daily Pulse Dev Skill
 
 Follow this workflow for every code change, no matter how small.
 
-## 1. Make the Edit
+## Project Structure
+```
+daily-pulse/
+├── daily-pulse.html      ← frontend UI only, no API key
+├── api/
+│   └── digest.js         ← Vercel serverless function, all Gemini calls
+├── SKILL.md              ← this file
+└── COWORK_HANDOFF.md     ← full app context and bug list
+```
 
-- Use surgical Python `str.replace` or `re.sub` for targeted changes — never rewrite the whole file unless explicitly asked
-- After each replacement, verify the old string was actually found and replaced (print a confirmation)
-- If a replacement fails, print the surrounding content to diagnose before retrying
+**Live app:** `https://daily-pulse-theta.vercel.app/daily-pulse.html`
+**API endpoint:** `https://daily-pulse-theta.vercel.app/api/digest`
+**Vercel auto-deploys on every push to main.**
 
-## 2. Syntax Checks (run before every delivery)
+---
 
-Extract the JS from the HTML and verify all of the following pass:
+## Step 1 — Identify which file to edit
+- API calls, URL validation, prompt logic, source filtering → `api/digest.js`
+- UI rendering, card display, copy, persistence, merge logic → `daily-pulse.html`
 
+## Step 2 — Make the Edit
+- Use surgical string replacement — never rewrite the whole file unless necessary
+- After each replacement, verify the old string was found and replaced (print confirmation)
+- If a replacement fails, print surrounding content to diagnose before retrying
+
+## Step 3 — Syntax Checks (for `daily-pulse.html` JS only)
 ```python
 import re
-with open('/mnt/user-data/outputs/daily-pulse.html', 'r') as f:
+with open('daily-pulse.html', 'r') as f:
     content = f.read()
 script_content = re.search(r'<script>([\s\S]*?)</script>', content).group(1)
-
 backticks = script_content.count('`')
 opens     = script_content.count('{')
 closes    = script_content.count('}')
 parens_o  = script_content.count('(')
 parens_c  = script_content.count(')')
-
 print(f"Backticks: {backticks} ({'OK' if backticks % 2 == 0 else 'UNBALANCED'})")
 print(f"Braces:    {opens}/{closes} ({'OK' if opens == closes else 'UNBALANCED'})")
 print(f"Parens:    {parens_o}/{parens_c} ({'OK' if parens_o == parens_c else 'UNBALANCED'})")
 ```
+**Do not commit if any check fails.**
 
-**Do not deliver if any check fails.** Fix the issue first, then re-run checks.
-
-Common causes of failures:
-- Raw `{}` inside a template literal (JS reads them as code braces)
+Common failure causes:
+- Raw `{}` inside a template literal
 - Duplicate closing backtick after a template literal
 - Extra `}` left over from a regex replacement
-- Prompt strings that contain JS-like syntax
 
-## 3. Runtime JS Check (run before every delivery)
-
-Run Node.js to catch real runtime errors — undefined variables, bad syntax, scoping issues:
-
+## Step 4 — Runtime JS Check (for `daily-pulse.html` JS only)
 ```python
 import re, subprocess, tempfile, os
-
-with open('/mnt/user-data/outputs/daily-pulse.html', 'r') as f:
+with open('daily-pulse.html', 'r') as f:
     content = f.read()
-
 script_content = re.search(r'<script>([\s\S]*?)</script>', content).group(1)
-
 stub = '''
 const localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const document = {
@@ -66,113 +72,84 @@ const window = { addEventListener: () => {} };
 const navigator = { clipboard: { writeText: () => Promise.resolve() } };
 const fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
 '''
-
 wrapped = stub + '\n(function() {\n' + script_content + '\n})();'
-
 with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
-    f.write(wrapped)
-    tmpfile = f.name
-
+    f.write(wrapped); tmpfile = f.name
 result = subprocess.run(['node', '--check', tmpfile], capture_output=True, text=True)
 os.unlink(tmpfile)
+print("✅ Runtime OK" if result.returncode == 0 else "❌ " + result.stderr)
+```
+**Do not commit if this fails.**
 
-if result.returncode == 0:
-    print("✅ JS runtime check passed")
-else:
-    print("❌ JS runtime errors:")
-    print(result.stderr)
+This catches: undefined function references, scoping issues, syntax errors that brace-counting misses.
+
+## Step 5 — Feature Integrity Check
+Run before every commit. Verify these strings exist in each file:
+
+**`daily-pulse.html` must contain:**
+```
+API_BASE, daily-pulse-theta.vercel.app, PAYWALLED_SOURCES, SOURCE_HOMES,
+function runDigest, function mergeDigests, function renderSection,
+function makeCard, function copyDigest, function restoreDigests,
+currentSession, no_update_intl, no_update_local, source-chip-paywall,
+card-time, Copy Morning to Capacities, Copy Evening to Capacities,
+dp_digests, updateSubtitles
 ```
 
-**Do not deliver if this check fails.** Fix the runtime error first.
-
-This catches:
-- Undefined function references (e.g. `renderSection` called but not defined)
-- Variable scoping issues
-- Syntax errors that brace-counting misses
-- Template literal problems with complex strings
-
-## 4. Feature Integrity Check (run before every delivery)
-
-Check that all critical strings are still present in the file after edits:
-
-```python
-checks = [
-    ('function researchPrompt',     'researchPrompt'),
-    ('function structurePrompt',    'structurePrompt'),
-    ('function mergeDigests',       'mergeDigests'),
-    ('function callGeminiGrounded', 'callGeminiGrounded'),
-    ('function callGeminiStructured','callGeminiStructured'),
-    ('function runDigest',          'runDigest'),
-    ('function renderSection',      'renderSection'),
-    ('function makeCard',           'makeCard'),
-    ('function copyDigest',         'copyDigest'),
-    ('function restoreDigests',     'restoreDigests'),
-    ('mergeDigests(',               'merge called in runDigest'),
-    ('google_search',               'search grounding tool'),
-    ('isFirstRun',                  'first run detection'),
-    ('CRITICAL FIRST RUN',          'strong first-run rule'),
-    ('source_count',                'source_count field'),
-    ('SOURCE_HOMES',                'source homepage fallbacks'),
-    ('card-time',                   'story time display'),
-    ('no_update_intl',              'intl no-update flag'),
-    ('no_update_local',             'local no-update flag'),
-    ('gemini-2.5-flash-lite',       'fallback model'),
-    ('thestandard.com.hk',          'The Standard source'),
-    ('Al Jazeera',                  'forbidden sources warning'),
-    ('dp_gemini_key',               'API key storage'),
-    ('dp_digests',                  'digest persistence'),
-    ('Copy Morning to Capacities',  'morning copy button'),
-    ('Copy Evening to Capacities',  'evening copy button'),
-]
-
-all_ok = True
-for check, label in checks:
-    found = check in content
-    print(f"{'✅' if found else '❌'} {label}")
-    if not found: all_ok = False
-
-print()
-print("✅ Ready to deliver" if all_ok else "❌ Fix issues before delivering")
+**`api/digest.js` must contain:**
+```
+GEMINI_KEY, PAYWALLED, APPROVED_DOMAINS, foxbusiness.com, hongkongfp.com,
+apnews.com, theguardian.com, nbcnews.com, isArticleUrl, isApprovedDomain,
+verifyUrl, validateAndClean, call1Prompt, call2Prompt, call3Prompt,
+callGemini, placeholder, example.com, export default,
+Access-Control-Allow-Origin
 ```
 
-**Do not deliver if any check fails.**
+**Do not commit if any are missing.**
 
-## 5. Deliver the File
+## Step 6 — Commit and Push
+- Push to `main` branch — Vercel auto-deploys within 30 seconds
+- Wait for green **Ready** status in Vercel dashboard before testing
 
-Only call `present_files` after steps 2, 3, and 4 all pass cleanly.
+## Step 7 — Test the Live App
+Open `https://daily-pulse-theta.vercel.app/daily-pulse.html`
+- Tap ☀️ Morning — wait up to 90 seconds
+- Run at least 3 times before declaring a fix successful
+- Check all items in the testing checklist (see COWORK_HANDOFF.md)
 
-## 6. Draft Commit Message
-
-After delivering, always generate a commit message with:
+## Step 8 — Draft Commit Message
 
 **Title** (fewer than 50 characters)
-- Imperative tense ("Fix", "Add", "Remove", "Update")
+- Imperative tense: "Fix", "Add", "Remove", "Update"
 - Specific — name the thing that changed
-- No full stop at the end
+- No full stop
 - Examples:
-  - `Fix STOP reason treated as error in Call 1`
-  - `Merge logic, story time, fix empty chips`
-  - `Restore missing render and copy functions`
+  - `Fix STOP grounding empty response retry`
+  - `Reject fabricated placeholder sources`
+  - `Add URL verification to digest.js`
 
 **Extended description**
-- Bullet points only — no prose paragraphs
-- Each bullet covers one discrete change
-- State what changed and why, not just what
+- Bullet points only
+- Each bullet: what changed and why
 - End with: `No changes to [X]` for anything deliberately untouched
-- Keep it under 100 words total
+- Under 100 words total
+
+---
 
 ## App Reference
 
-**File:** `daily-pulse.html`
-**Hosted:** `claywintringham.github.io/daily-pulse/daily-pulse.html`
-**Stack:** Single-file HTML, Vanilla JS, Gemini API with Google Search grounding
-**Key storage:** `localStorage` — `dp_gemini_key`, `dp_digests`
-**Sources — International:** Reuters, BBC, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News
-**Sources — Local HK:** SCMP, RTHK, HKET, Ming Pao, HKT, On.cc, The Standard
-**Forbidden sources:** Al Jazeera, AP, Anadolu Agency, The News Pakistan
-**Summary limit:** 70 words
-**Story time format:** "X hours ago" as reported by the news source
-**First run rule:** MUST return at least one intl and one local story — keep descending ranks until found
-**Subsequent run rule:** Merge with existing using combined pool; rank by source_count desc, ties favour newer story
-**Two-call architecture:** Call 1 = grounded research (plain text); Call 2 = structured JSON (no grounding)
-**Fallback model:** gemini-2.5-flash → gemini-2.5-flash-lite on overload
+| Property | Value |
+|---|---|
+| Live app | https://daily-pulse-theta.vercel.app/daily-pulse.html |
+| API | https://daily-pulse-theta.vercel.app/api/digest |
+| GitHub | https://github.com/claywintringham/daily-pulse |
+| API key | In Vercel env as `GEMINI_API_KEY` — never in code |
+| Primary model | gemini-2.5-flash |
+| Fallback model | gemini-2.5-flash-lite |
+| Morning | 2 intl + 2 local headlines |
+| Evening | 1 intl + 1 local headline |
+| Paywalled | WSJ, Bloomberg, FT — chip shown 🔒, never linked |
+| Recency | Morning: last 12h · Evening: last 6h |
+| Summary limit | 70 words, complete sentences only |
+| Story time | "Published X hours ago" in accent colour |
+
