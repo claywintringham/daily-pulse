@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daily Pulse">
+<title>Daily Pulse</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #f5f0e8;
+    --cream: #ede8dc;
+    --accent: #c8392b;
+    --muted: #7a7060;
+    --rule: #c8bfaa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+
+  /* Setup screen */
+  #setup-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 28px;
+  }
+
+  .setup-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .setup-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .setup-rule {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin: 20px auto 32px;
+  }
+
+  .setup-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .setup-input {
+    width: 100%;
+    background: var(--cream);
+    border: 1.5px solid var(--rule);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 24px;
+  }
+
+  .setup-input:focus { border-color: var(--accent); }
+
+  .setup-hint {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: -16px;
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-primary:active { opacity: 0.8; transform: scale(0.98); }
+
+  /* Main screen */
+  #main-screen { display: none; }
+
+  .masthead {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 20px 24px 18px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+  }
+
+  .masthead-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rule);
+    margin-bottom: 4px;
+  }
+
+  .masthead-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .masthead-title span {
+    color: var(--accent);
+  }
+
+  .masthead-date {
+    font-size: 11px;
+    color: var(--rule);
+    margin-top: 6px;
+    font-weight: 300;
+  }
+
+  .trigger-section {
+    padding: 20px 20px 0;
+  }
+
+  .trigger-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .trigger-btn {
+    background: var(--cream);
+    border: 1.5px solid var(--rule);
+    border-radius: 12px;
+    padding: 16px 12px;
+    text-align: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .trigger-btn:active { transform: scale(0.97); }
+
+  .trigger-btn.morning { border-color: #e8a020; }
+  .trigger-btn.evening { border-color: #3a5f8a; }
+
+  .trigger-btn.loading {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .trigger-icon {
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+
+  .trigger-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    display: block;
+  }
+
+  .trigger-sub {
+    font-size: 10px;
+    color: var(--muted);
+    display: block;
+    margin-top: 2px;
+  }
+
+  .trigger-btn.morning .trigger-label { color: #b07010; }
+  .trigger-btn.evening .trigger-label { color: #3a5f8a; }
+
+  /* Results area */
+  .results-area {
+    padding: 16px 20px 100px;
+  }
+
+  .result-card {
+    background: white;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    animation: slideUp 0.3s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card:nth-child(1) { animation-delay: 0.05s; }
+  .result-card:nth-child(2) { animation-delay: 0.12s; }
+  .result-card:nth-child(3) { animation-delay: 0.19s; }
+  .result-card:nth-child(4) { animation-delay: 0.26s; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid #f0ebe0;
+  }
+
+  .card-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  .badge-intl { background: #fff0e6; color: #c05010; }
+  .badge-local { background: #e6f0f8; color: #2a4f7a; }
+
+  .card-num {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+  }
+
+  .card-body { padding: 12px 14px 14px; }
+
+  .card-headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .card-source {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    text-decoration: none;
+    letter-spacing: 0.03em;
+  }
+
+  /* Copy button */
+  .copy-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    background: white;
+    border-top: 1px solid var(--rule);
+    padding: 12px 20px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    display: none;
+  }
+
+  .copy-bar.visible { display: block; }
+
+  .btn-copy {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.2s;
+  }
+
+  .btn-copy:active { opacity: 0.85; }
+
+  /* Loading spinner */
+  .spinner-wrap {
+    text-align: center;
+    padding: 40px 20px;
+    display: none;
+  }
+
+  .spinner-wrap.visible { display: block; }
+
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 2.5px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 14px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .spinner-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Error */
+  .error-box {
+    background: #fff0ee;
+    border: 1px solid #f0c0b8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 16px 20px 0;
+    font-size: 13px;
+    color: #a03020;
+    line-height: 1.5;
+    display: none;
+  }
+
+  .error-box.visible { display: block; }
+
+  /* Settings gear */
+  .settings-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: var(--rule);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .masthead { position: relative; }
+
+  /* Edition label */
+  .edition-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 20px 0;
+    font-weight: 500;
+  }
+
+  .edition-label span {
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <p class="setup-logo">Your morning briefing</p>
+  <h1 class="setup-title">Daily Pulse</h1>
+  <div class="setup-rule"></div>
+  <p class="setup-label">Gemini API Key</p>
+  <input type="password" id="api-key-input" class="setup-input" placeholder="Paste your key here" autocomplete="off" autocorrect="off" spellcheck="false">
+  <p class="setup-hint">Your key is saved only on this device.<br>It never leaves your phone.</p>
+  <button class="btn-primary" onclick="saveKey()">Save & Open Daily Pulse</button>
+</div>
+
+<!-- MAIN SCREEN -->
+<div id="main-screen">
+  <div class="masthead">
+    <p class="masthead-eyebrow">Hong Kong Edition</p>
+    <h1 class="masthead-title">Daily<span> Pulse</span></h1>
+    <p class="masthead-date" id="today-date"></p>
+    <button class="settings-btn" onclick="showSetup()" title="Settings">⚙︎</button>
+  </div>
+
+  <div class="trigger-section">
+    <div class="trigger-row">
+      <div class="trigger-btn morning" onclick="runDigest('morning')" id="btn-morning">
+        <div class="trigger-icon">☀️</div>
+        <span class="trigger-label">Morning</span>
+        <span class="trigger-sub">2 intl · 2 local</span>
+      </div>
+      <div class="trigger-btn evening" onclick="runDigest('evening')" id="btn-evening">
+        <div class="trigger-icon">🌙</div>
+        <span class="trigger-label">Evening</span>
+        <span class="trigger-sub">1 intl · 1 local</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="spinner-wrap" id="spinner">
+    <div class="spinner"></div>
+    <p class="spinner-label">Scanning sources…</p>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <div class="edition-label" id="edition-label" style="display:none">
+    <span id="edition-text"></span> Edition · <span id="edition-time"></span>
+  </div>
+
+  <div class="results-area" id="results-area"></div>
+
+  <div class="copy-bar" id="copy-bar">
+    <button class="btn-copy" onclick="copyToClipboard()">Copy to Capacities</button>
+  </div>
+</div>
+
+<script>
+const MORNING_PROMPT = `You are Daily Pulse, a concise news digest for a Hong Kong reader.
+
+Search and identify today's top news headlines from these international sources in order: Reuters, BBC News, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News. Stop checking once a headline is confirmed across 3 sources.
+
+Then search these local HK sources in order: SCMP, RTHK, HKET, Ming Pao, HKT, On.cc. Stop checking once a headline is confirmed across 3 sources.
+
+Return EXACTLY this JSON structure, nothing else, no markdown:
+{
+  "international": [
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."},
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+  ],
+  "local": [
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."},
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+  ]
+}
+
+Rules: 2 international headlines, 2 local HK headlines. Each must appear in at least 3 sources. URL must be the single best article. Return only valid JSON.`;
+
+const EVENING_PROMPT = `You are Daily Pulse, a concise news digest for a Hong Kong reader.
+
+Search today's headlines from these international sources in order: Reuters, BBC News, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News. Then these local HK sources: SCMP, RTHK, HKET, Ming Pao, HKT, On.cc.
+
+Find 1 international headline and 1 local HK headline that each appear in at least 3 sources. These must be DIFFERENT from the morning's top stories (focus on new developments from this afternoon/evening).
+
+If no headline meets the 3-source threshold, return: {"no_update": true}
+
+Otherwise return EXACTLY this JSON, nothing else, no markdown:
+{
+  "international": [
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+  ],
+  "local": [
+    {"headline": "...", "sources": ["source1","source2","source3"], "url": "https://..."}
+  ]
+}
+
+Return only valid JSON.`;
+
+let lastDigestText = '';
+
+function saveKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { alert('Please paste your Gemini API key first.'); return; }
+  localStorage.setItem('dp_gemini_key', key);
+  showMain();
+}
+
+function showMain() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  const now = new Date();
+  document.getElementById('today-date').textContent = now.toLocaleDateString('en-HK', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+}
+
+function showSetup() {
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+}
+
+function setLoading(on) {
+  document.getElementById('spinner').className = on ? 'spinner-wrap visible' : 'spinner-wrap';
+  document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
+  document.getElementById('btn-evening').className = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.className = 'error-box visible';
+}
+
+function hideError() {
+  document.getElementById('error-box').className = 'error-box';
+}
+
+async function runDigest(type) {
+  const key = localStorage.getItem('dp_gemini_key');
+  if (!key) { showSetup(); return; }
+
+  hideError();
+  document.getElementById('results-area').innerHTML = '';
+  document.getElementById('copy-bar').className = 'copy-bar';
+  document.getElementById('edition-label').style.display = 'none';
+  setLoading(true);
+
+  const prompt = type === 'morning' ? MORNING_PROMPT : EVENING_PROMPT;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+        })
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data?.error?.message || 'API error. Check your key in settings.';
+      throw new Error(msg);
+    }
+
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    setLoading(false);
+    renderResults(parsed, type);
+
+  } catch (e) {
+    setLoading(false);
+    showError('⚠ ' + (e.message || 'Something went wrong. Please try again.'));
+  }
+}
+
+function renderResults(data, type) {
+  const area = document.getElementById('results-area');
+  area.innerHTML = '';
+  lastDigestText = '';
+
+  if (data.no_update) {
+    area.innerHTML = `<div class="result-card" style="opacity:1;animation:none;padding:20px 14px;text-align:center">
+      <p style="font-family:'Playfair Display',serif;font-style:italic;color:var(--muted);font-size:15px">No important update this evening.<br>No headline reached 3 sources.</p>
+    </div>`;
+    lastDigestText = 'No important update this evening.';
+    showCopyBar();
+    showEditionLabel(type);
+    return;
+  }
+
+  const intlItems = data.international || [];
+  const localItems = data.local || [];
+  let copyLines = type === 'morning' ? '☀️ MORNING DIGEST\n' : '🌙 EVENING DIGEST\n';
+  copyLines += new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + '\n\n';
+
+  if (intlItems.length) copyLines += '🌍 INTERNATIONAL\n';
+  intlItems.forEach((item, i) => {
+    const card = makeCard(item, 'intl', i + 1);
+    area.appendChild(card);
+    copyLines += `${i+1}. ${item.headline}\n   Sources: ${(item.sources||[]).join(', ')}\n   ${item.url || ''}\n\n`;
+  });
+
+  if (localItems.length) copyLines += '🇭🇰 LOCAL HK\n';
+  localItems.forEach((item, i) => {
+    const card = makeCard(item, 'local', i + 1);
+    area.appendChild(card);
+    copyLines += `${i+1}. ${item.headline}\n   Sources: ${(item.sources||[]).join(', ')}\n   ${item.url || ''}\n\n`;
+  });
+
+  lastDigestText = copyLines.trim();
+  showCopyBar();
+  showEditionLabel(type);
+}
+
+function makeCard(item, type, num) {
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
+  const badgeText = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
+  const sources = (item.sources || []).join(' · ');
+  const linkHtml = item.url
+    ? `<a class="card-link" href="${item.url}" target="_blank">Read article →</a>`
+    : '';
+
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-badge ${badgeClass}">${badgeText}</span>
+      <span class="card-num">${num}</span>
+    </div>
+    <div class="card-body">
+      <p class="card-headline">${item.headline}</p>
+      <p class="card-source">${sources}</p>
+      ${linkHtml}
+    </div>`;
+  return card;
+}
+
+function showCopyBar() {
+  document.getElementById('copy-bar').className = 'copy-bar visible';
+}
+
+function showEditionLabel(type) {
+  const label = document.getElementById('edition-label');
+  const now = new Date();
+  document.getElementById('edition-text').textContent = type === 'morning' ? '☀️ Morning' : '🌙 Evening';
+  document.getElementById('edition-time').textContent = now.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' });
+  label.style.display = 'block';
+}
+
+async function copyToClipboard() {
+  try {
+    await navigator.clipboard.writeText(lastDigestText);
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to Capacities'; }, 2000);
+  } catch {
+    // Fallback for older Safari
+    const ta = document.createElement('textarea');
+    ta.value = lastDigestText;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to Capacities'; }, 2000);
+  }
+}
+
+// Init
+window.addEventListener('load', () => {
+  const key = localStorage.getItem('dp_gemini_key');
+  if (key) { showMain(); } 
+  else { document.getElementById('setup-screen').style.display = 'flex'; }
+});
+</script>
+</body>
+</html>
