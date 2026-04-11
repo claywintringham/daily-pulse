@@ -16,7 +16,7 @@
     --accent: #c8392b;
     --muted: #7a7060;
     --rule: #c8bfaa;
-    --morning: #e8a020;
+    --morning: #b07010;
     --evening: #3a5f8a;
   }
 
@@ -93,7 +93,7 @@
   .setup-hint {
     font-size: 12px;
     color: var(--muted);
-    margin-bottom: 24px;
+    margin-bottom: 28px;
     line-height: 1.6;
     align-self: flex-start;
   }
@@ -161,10 +161,8 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* ── TRIGGER BUTTONS ── */
-  .trigger-section {
-    padding: 16px 16px 0;
-  }
+  /* ── TRIGGERS ── */
+  .trigger-section { padding: 16px 16px 0; }
 
   .trigger-row {
     display: grid;
@@ -185,8 +183,10 @@
 
   .trigger-btn:active { transform: scale(0.97); }
   .trigger-btn.loading { opacity: 0.5; pointer-events: none; }
-  .trigger-btn.morning { border-color: var(--morning); }
+  .trigger-btn.morning { border-color: #e8a020; }
   .trigger-btn.evening { border-color: var(--evening); }
+  .trigger-btn.morning .trigger-label { color: var(--morning); }
+  .trigger-btn.evening .trigger-label { color: var(--evening); }
 
   .trigger-icon { font-size: 20px; margin-bottom: 3px; }
 
@@ -202,9 +202,6 @@
     display: block;
     margin-top: 2px;
   }
-
-  .trigger-btn.morning .trigger-label { color: #b07010; }
-  .trigger-btn.evening .trigger-label { color: var(--evening); }
 
   /* ── SPINNER ── */
   .spinner-wrap {
@@ -249,17 +246,16 @@
   .error-box.visible { display: block; }
 
   /* ── DIGEST SECTIONS ── */
-  .digest-section {
-    margin: 16px 0 0;
-  }
+  .digest-section { margin: 16px 0 0; }
 
   .digest-header {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 8px;
     padding: 0 16px 10px;
     border-bottom: 1.5px solid var(--rule);
     margin: 0 16px 12px;
+    flex-wrap: wrap;
   }
 
   .digest-header-title {
@@ -268,15 +264,8 @@
     font-weight: 700;
   }
 
-  .digest-header-title.morning { color: #b07010; }
+  .digest-header-title.morning { color: var(--morning); }
   .digest-header-title.evening { color: var(--evening); }
-
-  .digest-timestamp {
-    font-size: 11px;
-    color: var(--muted);
-    margin-left: auto;
-    white-space: nowrap;
-  }
 
   .digest-date-pill {
     display: inline-block;
@@ -286,13 +275,16 @@
     padding: 3px 10px;
     font-size: 10px;
     color: var(--muted);
-    letter-spacing: 0.05em;
+  }
+
+  .digest-timestamp {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
   }
 
   /* ── CARDS ── */
-  .cards-wrap {
-    padding: 0 16px;
-  }
+  .cards-wrap { padding: 0 16px; }
 
   .result-card {
     background: white;
@@ -311,6 +303,13 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  .result-card:nth-child(1) { animation-delay: 0.05s; }
+  .result-card:nth-child(2) { animation-delay: 0.12s; }
+  .result-card:nth-child(3) { animation-delay: 0.19s; }
+  .result-card:nth-child(4) { animation-delay: 0.26s; }
+  .result-card:nth-child(5) { animation-delay: 0.33s; }
+  .result-card:nth-child(6) { animation-delay: 0.40s; }
+
   .card-header {
     display: flex;
     align-items: center;
@@ -328,7 +327,7 @@
     border-radius: 20px;
   }
 
-  .badge-intl { background: #fff0e6; color: #c05010; }
+  .badge-intl  { background: #fff0e6; color: #c05010; }
   .badge-local { background: #e6f0f8; color: #2a4f7a; }
 
   .card-num {
@@ -351,7 +350,7 @@
 
   .card-summary {
     font-size: 13px;
-    line-height: 1.65;
+    line-height: 1.7;
     color: #3a3530;
     margin-bottom: 12px;
   }
@@ -383,12 +382,10 @@
     text-decoration: none;
   }
 
-  /* ── COPY BARS ── */
+  /* ── COPY BAR ── */
   .copy-bar {
     display: flex;
-    gap: 8px;
-    padding: 10px 16px;
-    margin: 0 0 4px;
+    padding: 8px 16px 4px;
   }
 
   .btn-copy {
@@ -405,11 +402,8 @@
   }
 
   .btn-copy:active { opacity: 0.8; }
-  .btn-copy.morning-copy { background: #fff3d6; color: #b07010; }
+  .btn-copy.morning-copy { background: #fff3d6; color: var(--morning); }
   .btn-copy.evening-copy { background: #e6f0f8; color: var(--evening); }
-
-  /* ── BOTTOM SPACER ── */
-  .bottom-spacer { height: 40px; }
 
   /* ── NO UPDATE ── */
   .no-update-card {
@@ -417,7 +411,7 @@
     border-radius: 14px;
     padding: 20px;
     text-align: center;
-    margin: 0 16px 12px;
+    margin: 0 0 12px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.07);
   }
 
@@ -428,6 +422,8 @@
     font-size: 14px;
     line-height: 1.6;
   }
+
+  .bottom-spacer { height: 40px; }
 </style>
 </head>
 <body>
@@ -437,15 +433,9 @@
   <p class="setup-logo">Your morning briefing</p>
   <h1 class="setup-title">Daily <span style="color:var(--accent)">Pulse</span></h1>
   <div class="setup-rule"></div>
-
-  <p class="setup-label">NewsAPI Key</p>
-  <input type="password" id="newsapi-key-input" class="setup-input" placeholder="Paste your NewsAPI key" autocomplete="off" spellcheck="false">
-  <p class="setup-hint">Get a free key at newsapi.org</p>
-
   <p class="setup-label">Gemini API Key</p>
   <input type="password" id="gemini-key-input" class="setup-input" placeholder="Paste your Gemini key" autocomplete="off" spellcheck="false">
-  <p class="setup-hint">Get a key at aistudio.google.com</p>
-
+  <p class="setup-hint">Get a free key at aistudio.google.com — no other keys needed.</p>
   <button class="btn-primary" onclick="saveKeys()">Save & Open Daily Pulse</button>
 </div>
 
@@ -475,7 +465,7 @@
 
   <div class="spinner-wrap" id="spinner">
     <div class="spinner"></div>
-    <p class="spinner-label" id="spinner-label">Fetching live headlines…</p>
+    <p class="spinner-label" id="spinner-label">Searching live headlines…</p>
   </div>
 
   <div class="error-box" id="error-box"></div>
@@ -514,66 +504,57 @@
 </div>
 
 <script>
-// ── SOURCES ──
-const INTL_SOURCES = ['reuters','bbc-news','bloomberg','the-new-york-times','cnn','the-wall-street-journal','cnbc','fox-news'];
-const INTL_LABELS  = ['Reuters','BBC','Bloomberg','NYT','CNN','WSJ','CNBC','Fox News'];
-
 // ── PROMPTS ──
-function buildPrompt(type, articles, morningHeadlines) {
-  const articleText = articles.map((a, i) =>
-    `[${i+1}] SOURCE: ${a.source} | POSITION: ${a.position} | HEADLINE: ${a.title} | URL: ${a.url}`
-  ).join('\n');
+function buildPrompt(type, morningHeadlines) {
+  const isEvening = type === 'evening';
+  const count = isEvening ? 1 : 3;
 
-  const exclusion = (type === 'evening' && morningHeadlines && morningHeadlines.length)
-    ? `\n\nEXCLUDE any story that overlaps with these morning headlines:\n${morningHeadlines.join('\n')}`
+  const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
+    ? `\n\nIMPORTANT: The following stories were already covered in the morning digest — do NOT repeat them. Find different stories:\n${morningHeadlines.map((h,i) => `${i+1}. ${h}`).join('\n')}`
     : '';
 
-  const count = type === 'morning' ? 3 : 1;
+  const today = new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-  return `You are Daily Pulse, a news digest for a Hong Kong reader.
+  return `You are Daily Pulse, a news digest for a Hong Kong-based reader. Today is ${today}.
 
-Below are live headlines fetched from major international news sources, each tagged with its source and position on that source's homepage.
+Use Google Search to find today's live top headlines from these sources.
 
-${articleText}
+INTERNATIONAL SOURCES (search in this order, stop early if threshold met):
+1. Reuters  2. BBC News  3. Bloomberg  4. New York Times  5. CNN  6. Wall Street Journal  7. CNBC  8. Fox News
 
-TASK:
-1. Identify the ${count} most repeated stor${count > 1 ? 'ies' : 'y'} — prioritise stories that appear in the TOP 3 positions across at least 3 sources. Only fall back to top 4 or top 5 positions if nothing qualifies at top 3.
-2. For each qualifying story, write a summary of 100-150 words. If the story is especially significant or complex, you may extend to up to 400 words — use your judgement.
-3. List which sources mentioned it and at what position.${exclusion}
+LOCAL HK SOURCES (search in this order, stop early if threshold met):
+1. SCMP  2. RTHK  3. HKET  4. Ming Pao  5. HKT  6. On.cc
 
-Also identify ${count} local Hong Kong headline${count > 1 ? 's' : ''} using your knowledge (NewsAPI does not cover HK local sources well). Apply the same top-3 logic conceptually. Label these clearly as estimated.
+SELECTION RULES:
+- Find the ${count} most repeated international stor${count > 1 ? 'ies' : 'y'} that appear in the TOP 3 headline positions of at least 3 sources
+- Find the ${count} most repeated local HK stor${count > 1 ? 'ies' : 'y'} that appear in the TOP 3 headline positions of at least 3 HK sources
+- Only fall back to top 4 or top 5 if nothing qualifies at top 3
+- If truly no story meets the threshold, return no_update: true${exclusion}
 
-Return ONLY valid JSON, no markdown, no explanation:
+FOR EACH STORY PROVIDE:
+- headline: clear, factual headline
+- summary: 100-150 words minimum. If the story is especially significant or complex, extend up to 400 words. Always give enough detail for the reader to understand what happened, why it matters, and what comes next.
+- sources: array of {name, position} for each source that covered it in their top headlines
+- url: link to the single best, most detailed article
+
+Return ONLY valid JSON, no markdown, no explanation, no code fences:
 {
   "international": [
-    {
-      "headline": "...",
-      "summary": "...",
-      "sources": [{"name": "BBC", "position": 1}, {"name": "CNN", "position": 2}],
-      "url": "https://..."
-    }
+    {"headline":"...","summary":"...","sources":[{"name":"BBC","position":1},{"name":"CNN","position":2}],"url":"https://..."}
   ],
   "local": [
-    {
-      "headline": "...",
-      "summary": "...",
-      "sources": [{"name": "SCMP", "position": 1}],
-      "url": "https://...",
-      "estimated": true
-    }
+    {"headline":"...","summary":"...","sources":[{"name":"SCMP","position":1},{"name":"RTHK","position":2}],"url":"https://..."}
   ]
 }`;
 }
 
 // ── STATE ──
 let digestStore = { morning: null, evening: null };
-let activeSpinner = null;
 
 // ── INIT ──
 window.addEventListener('load', () => {
-  const nk = localStorage.getItem('dp_newsapi_key');
   const gk = localStorage.getItem('dp_gemini_key');
-  if (!nk || !gk) {
+  if (!gk) {
     document.getElementById('setup-screen').style.display = 'flex';
   } else {
     showMain();
@@ -582,10 +563,8 @@ window.addEventListener('load', () => {
 });
 
 function saveKeys() {
-  const nk = document.getElementById('newsapi-key-input').value.trim();
   const gk = document.getElementById('gemini-key-input').value.trim();
-  if (!nk || !gk) { alert('Please enter both API keys.'); return; }
-  localStorage.setItem('dp_newsapi_key', nk);
+  if (!gk) { alert('Please enter your Gemini API key.'); return; }
   localStorage.setItem('dp_gemini_key', gk);
   showMain();
   restoreDigests();
@@ -602,7 +581,7 @@ function showSetup() {
   document.getElementById('setup-screen').style.display = 'flex';
 }
 
-// ── RESTORE SAVED DIGESTS ──
+// ── RESTORE ──
 function restoreDigests() {
   const saved = localStorage.getItem('dp_digests');
   if (!saved) return;
@@ -617,33 +596,25 @@ function saveDigests() {
   localStorage.setItem('dp_digests', JSON.stringify(digestStore));
 }
 
-// ── RUN DIGEST ──
+// ── RUN ──
 async function runDigest(type) {
-  const newsKey = localStorage.getItem('dp_newsapi_key');
-  const gemKey  = localStorage.getItem('dp_gemini_key');
-  if (!newsKey || !gemKey) { showSetup(); return; }
+  const gemKey = localStorage.getItem('dp_gemini_key');
+  if (!gemKey) { showSetup(); return; }
 
   hideError();
-  setLoading(true, type);
+  setLoading(true);
+  updateSpinner('Searching live headlines…');
 
   try {
-    // Step 1: fetch live headlines from NewsAPI
-    updateSpinner('Fetching live headlines…');
-    const articles = await fetchNewsAPI(newsKey);
-
-    // Step 2: send to Gemini for analysis
-    updateSpinner('Analysing headlines…');
     const morningHeadlines = (type === 'evening' && digestStore.morning)
-      ? digestStore.morning.items.international.map(i => i.headline)
+      ? (digestStore.morning.items.international || []).map(i => i.headline)
       : [];
-    const prompt = buildPrompt(type, articles, morningHeadlines);
+
+    const prompt = buildPrompt(type, morningHeadlines);
+    updateSpinner('Analysing across sources…');
     const parsed = await callGemini(gemKey, prompt);
 
-    // Step 3: store and render
-    const record = {
-      items: parsed,
-      fetchedAt: new Date().toISOString()
-    };
+    const record = { items: parsed, fetchedAt: new Date().toISOString() };
     digestStore[type] = record;
     saveDigests();
     setLoading(false);
@@ -655,36 +626,7 @@ async function runDigest(type) {
   }
 }
 
-// ── NEWSAPI FETCH ──
-async function fetchNewsAPI(key) {
-  const articles = [];
-
-  for (let i = 0; i < INTL_SOURCES.length; i++) {
-    const src = INTL_SOURCES[i];
-    const label = INTL_LABELS[i];
-    try {
-      const res = await fetch(
-        `https://newsapi.org/v2/top-headlines?sources=${src}&pageSize=5&apiKey=${key}`
-      );
-      const data = await res.json();
-      if (data.articles) {
-        data.articles.forEach((a, pos) => {
-          articles.push({
-            source: label,
-            position: pos + 1,
-            title: a.title || '',
-            url: a.url || ''
-          });
-        });
-      }
-    } catch(e) {}
-  }
-
-  if (!articles.length) throw new Error('Could not fetch any headlines from NewsAPI. Check your key.');
-  return articles;
-}
-
-// ── GEMINI CALL ──
+// ── GEMINI WITH SEARCH GROUNDING ──
 async function callGemini(key, prompt) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -692,9 +634,10 @@ async function callGemini(key, prompt) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: [{ text: prompt }], role: 'user' }],
+        tools: [{ google_search: {} }],
         generationConfig: {
-          temperature: 0.3,
+          temperature: 0.2,
           maxOutputTokens: 4000,
           responseMimeType: 'application/json'
         }
@@ -703,35 +646,33 @@ async function callGemini(key, prompt) {
   );
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || 'Gemini API error.');
+  if (!res.ok) throw new Error(data?.error?.message || 'Gemini API error. Check your key.');
 
   const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   let clean = raw.replace(/```json|```/gi, '').trim();
   const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Could not parse response. Please try again.');
+  if (!jsonMatch) throw new Error('Could not parse response. Try again in a moment.');
   return JSON.parse(jsonMatch[0]);
 }
 
 // ── RENDER ──
 function renderSection(type, record, restored) {
-  const section = document.getElementById(`${type}-section`);
+  const section   = document.getElementById(`${type}-section`);
   const cardsWrap = document.getElementById(`${type}-cards`);
-  const datePill = document.getElementById(`${type}-date-pill`);
+  const datePill  = document.getElementById(`${type}-date-pill`);
   const timestamp = document.getElementById(`${type}-timestamp`);
 
   const fetchedAt = new Date(record.fetchedAt);
-  datePill.textContent = formatDate(fetchedAt);
+  datePill.textContent  = formatDate(fetchedAt);
   timestamp.textContent = formatTime(fetchedAt);
-
-  cardsWrap.innerHTML = '';
-
-  const intl = record.items.international || [];
-  const local = record.items.local || [];
+  cardsWrap.innerHTML   = '';
 
   if (record.items.no_update) {
     cardsWrap.innerHTML = `<div class="no-update-card"><p>No important update this evening.<br>No headline reached the top-3 threshold.</p></div>`;
   } else {
-    intl.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'intl', i + 1, restored)));
+    const intl  = record.items.international || [];
+    const local = record.items.local || [];
+    intl.forEach((item, i)  => cardsWrap.appendChild(makeCard(item, 'intl',  i + 1, restored)));
     local.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'local', i + 1, restored)));
   }
 
@@ -745,14 +686,10 @@ function makeCard(item, type, num, restored) {
   const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
   const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
 
-  const sourceChips = (item.sources || []).map(s => {
+  const chips = (item.sources || []).map(s => {
     const pos = s.position ? ` #${s.position}` : '';
     return `<span class="source-chip">${s.name}${pos}</span>`;
   }).join('');
-
-  const estimatedNote = item.estimated
-    ? `<p style="font-size:11px;color:var(--muted);margin-bottom:8px;font-style:italic">⚠ Estimated — not from live feed</p>`
-    : '';
 
   const linkHtml = item.url
     ? `<a class="card-link" href="${item.url}" target="_blank">Read full article →</a>`
@@ -765,9 +702,8 @@ function makeCard(item, type, num, restored) {
     </div>
     <div class="card-body">
       <p class="card-headline">${item.headline}</p>
-      ${estimatedNote}
       <p class="card-summary">${item.summary || ''}</p>
-      <div class="card-sources">${sourceChips}</div>
+      <div class="card-sources">${chips}</div>
       ${linkHtml}
     </div>`;
   return card;
@@ -778,33 +714,33 @@ function copyDigest(type) {
   const record = digestStore[type];
   if (!record) return;
 
-  const label = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
+  const label     = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
   const fetchedAt = new Date(record.fetchedAt);
   let text = `${label}\n${formatDate(fetchedAt)} · ${formatTime(fetchedAt)}\n\n`;
 
-  const intl = record.items.international || [];
+  const intl  = record.items.international || [];
   const local = record.items.local || [];
 
   if (intl.length) {
     text += '🌍 INTERNATIONAL\n\n';
     intl.forEach((item, i) => {
-      const sources = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
-      text += `${i+1}. ${item.headline}\n${item.summary || ''}\nSources: ${sources}\n${item.url || ''}\n\n`;
+      const srcs = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
+      text += `${i+1}. ${item.headline}\n\n${item.summary || ''}\n\nSources: ${srcs}\n${item.url || ''}\n\n`;
     });
   }
 
   if (local.length) {
     text += '🇭🇰 LOCAL HK\n\n';
     local.forEach((item, i) => {
-      const sources = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
-      const est = item.estimated ? ' [estimated]' : '';
-      text += `${i+1}. ${item.headline}${est}\n${item.summary || ''}\nSources: ${sources}\n${item.url || ''}\n\n`;
+      const srcs = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
+      text += `${i+1}. ${item.headline}\n\n${item.summary || ''}\n\nSources: ${srcs}\n${item.url || ''}\n\n`;
     });
   }
 
+  const btn  = document.querySelector(`.btn-copy.${type}-copy`);
+  const orig = btn.textContent;
+
   navigator.clipboard.writeText(text.trim()).then(() => {
-    const btn = document.querySelector(`.btn-copy.${type}-copy`);
-    const orig = btn.textContent;
     btn.textContent = '✓ Copied!';
     setTimeout(() => btn.textContent = orig, 2000);
   }).catch(() => {
@@ -815,41 +751,23 @@ function copyDigest(type) {
     ta.focus(); ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    const btn = document.querySelector(`.btn-copy.${type}-copy`);
-    const orig = btn.textContent;
     btn.textContent = '✓ Copied!';
     setTimeout(() => btn.textContent = orig, 2000);
   });
 }
 
-// ── UI HELPERS ──
-function setLoading(on, type) {
-  document.getElementById('spinner').className = on ? 'spinner-wrap visible' : 'spinner-wrap';
-  document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
-  document.getElementById('btn-evening').className = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
+// ── HELPERS ──
+function setLoading(on) {
+  document.getElementById('spinner').className       = on ? 'spinner-wrap visible' : 'spinner-wrap';
+  document.getElementById('btn-morning').className   = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
+  document.getElementById('btn-evening').className   = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
 }
 
-function updateSpinner(msg) {
-  document.getElementById('spinner-label').textContent = msg;
-}
-
-function showError(msg) {
-  const el = document.getElementById('error-box');
-  el.textContent = msg;
-  el.className = 'error-box visible';
-}
-
-function hideError() {
-  document.getElementById('error-box').className = 'error-box';
-}
-
-function formatDate(d) {
-  return d.toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-}
-
-function formatTime(d) {
-  return d.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' });
-}
+function updateSpinner(msg) { document.getElementById('spinner-label').textContent = msg; }
+function showError(msg)     { const el = document.getElementById('error-box'); el.textContent = msg; el.className = 'error-box visible'; }
+function hideError()        { document.getElementById('error-box').className = 'error-box'; }
+function formatDate(d)      { return d.toLocaleDateString('en-HK',  { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
+function formatTime(d)      { return d.toLocaleTimeString('en-HK',  { hour:'2-digit', minute:'2-digit' }); }
 </script>
 </body>
 </html>
