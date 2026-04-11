@@ -350,9 +350,31 @@ async function callGeminiGrounded(key, prompt) {
   if (!res.ok) throw new Error(data?.error?.message || 'Gemini search error.');
 
   // Collect all text parts from grounded response
+  // Grounding responses can have complex structures — extract all text aggressively
+  let text = '';
+
+  // Try primary candidate parts
   const parts = data.candidates?.[0]?.content?.parts || [];
-  const text = parts.filter(p => p.text).map(p => p.text).join('\n');
-  if (!text.trim()) throw new Error('No research results returned. Please try again.');
+  text = parts.filter(p => p.text).map(p => p.text).join('\n');
+
+  // If empty, try all candidates
+  if (!text.trim()) {
+    for (const candidate of (data.candidates || [])) {
+      const cparts = candidate?.content?.parts || [];
+      const ctext = cparts.filter(p => p.text).map(p => p.text).join('\n');
+      if (ctext.trim()) { text = ctext; break; }
+    }
+  }
+
+  // If still empty, check if there is a grounding metadata with snippets we can use
+  if (!text.trim()) {
+    const meta = data.candidates?.[0]?.groundingMetadata;
+    const snippets = meta?.groundingChunks?.map(c => c?.web?.title || '').filter(Boolean).join(', ');
+    if (snippets) throw new Error('Search returned metadata only. Try again in a moment.');
+    // Log the full structure for debugging
+    throw new Error('Empty research response. Structure: ' + JSON.stringify(Object.keys(data)).substring(0, 100));
+  }
+
   return text;
 }
 
@@ -367,7 +389,7 @@ async function callGeminiStructured(key, prompt) {
         contents: [{ parts: [{ text: prompt }], role: 'user' }],
         generationConfig: {
           temperature: 0.0,
-          maxOutputTokens: 2500,
+          maxOutputTokens: 16000,
           responseMimeType: 'application/json'
         }
       })
@@ -382,9 +404,27 @@ async function callGeminiStructured(key, prompt) {
 
   // Clean and parse
   const clean = raw.replace(/```json|```/gi, '').trim();
+  // Try greedy match first to get full nested object
   const match = clean.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Could not find JSON in response: ' + clean.substring(0, 120));
-  return JSON.parse(match[0]);
+
+  try {
+    return JSON.parse(match[0]);
+  } catch(e) {
+    // If greedy match grabbed too much, try to find the outermost complete object
+    let depth = 0, start = -1, result = null;
+    for (let i = 0; i < clean.length; i++) {
+      if (clean[i] === '{') { if (depth === 0) start = i; depth++; }
+      else if (clean[i] === '}') {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          try { result = JSON.parse(clean.substring(start, i + 1)); break; } catch(e2) {}
+        }
+      }
+    }
+    if (result) return result;
+    throw new Error('JSON parse failed: ' + clean.substring(0, 150));
+  }
 }
 
 // ── RENDER ──
