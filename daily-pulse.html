@@ -547,7 +547,7 @@ async function runDigest(type) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2500 }
+          generationConfig: { temperature: 0.3, maxOutputTokens: 2500, responseMimeType: 'application/json' }
         })
       }
     );
@@ -562,7 +562,7 @@ async function runDigest(type) {
     const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     let clean = raw.replace(/```json|```/gi, '').trim();
     const jsonMatch = clean.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No valid response received. Please try again.');
+    if (!jsonMatch) throw new Error('Bad response: ' + clean.substring(0, 200));
     clean = jsonMatch[0];
     const parsed = JSON.parse(clean);
 
