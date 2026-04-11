@@ -370,17 +370,31 @@ async function callGeminiGrounded(key, prompt) {
         }
       }
       if (!text.trim()) {
-        // Check finishReason to understand why parts are empty
         const reason = data.candidates?.[0]?.finishReason || 'unknown';
         const keys = Object.keys(data).join(', ');
-        const pcount = data.candidates?.[0]?.content?.parts?.length || 0;
-        // SAFETY or RECITATION blocks mean we should try fallback model
-        if (reason === 'SAFETY' || reason === 'RECITATION' || pcount === 0) {
-          lastError = new Error('No content returned (' + reason + ') from ' + model + '. Keys: ' + keys);
+
+        if (reason === 'STOP') {
+          // STOP means Gemini finished fine but grounding put content in
+          // grounding metadata rather than parts — extract from snippets
+          const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+          const snippets = data.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.renderedContent || '';
+          const supports = data.candidates?.[0]?.groundingMetadata?.groundingSupports || [];
+          // Build a text summary from grounding supports if available
+          const supportText = supports.map(s => s?.segment?.text || '').filter(Boolean).join('\n');
+          if (supportText.trim()) { text = supportText; }
+          else if (snippets.trim()) { text = snippets; }
+          else {
+            // STOP with no extractable text — retry with more explicit prompt on next model
+            lastError = new Error('Grounding returned no text (STOP). Keys: ' + keys);
+            continue;
+          }
+        } else if (reason === 'SAFETY' || reason === 'RECITATION') {
+          lastError = new Error('Content blocked (' + reason + ') from ' + model);
+          continue;
+        } else {
+          lastError = new Error('No content (' + reason + ') from ' + model + '. Keys: ' + keys);
           continue;
         }
-        lastError = new Error('Empty text from ' + model + '. Reason: ' + reason);
-        continue;
       }
       // Truncate report to prevent Call 2 prompt overflow (max 6000 chars)
       if (text.length > 6000) text = text.substring(0, 6000) + '\n[truncated]';
