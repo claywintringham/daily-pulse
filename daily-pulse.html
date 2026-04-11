@@ -19,437 +19,114 @@
     --morning: #b07010;
     --evening: #3a5f8a;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
 
-  body {
-    background: var(--paper);
-    color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  /* ── SETUP ── */
-  #setup-screen {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 40px 28px;
-  }
-
-  .setup-logo {
-    font-family: 'Playfair Display', serif;
-    font-size: 11px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-
-  .setup-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 38px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-
-  .setup-rule {
-    width: 40px;
-    height: 2px;
-    background: var(--accent);
-    margin: 20px auto 32px;
-  }
-
-  .setup-label {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-    align-self: flex-start;
-    width: 100%;
-  }
-
-  .setup-input {
-    width: 100%;
-    background: var(--cream);
-    border: 1.5px solid var(--rule);
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    color: var(--ink);
-    outline: none;
-    transition: border-color 0.2s;
-    margin-bottom: 8px;
-  }
-
+  /* SETUP */
+  #setup-screen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 28px; }
+  .setup-logo { font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .setup-title { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 700; }
+  .setup-rule { width: 40px; height: 2px; background: var(--accent); margin: 20px auto 32px; }
+  .setup-label { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; align-self: flex-start; width: 100%; }
+  .setup-input { width: 100%; background: var(--cream); border: 1.5px solid var(--rule); border-radius: 10px; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink); outline: none; transition: border-color 0.2s; margin-bottom: 8px; }
   .setup-input:focus { border-color: var(--accent); }
-
-  .setup-hint {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 28px;
-    line-height: 1.6;
-    align-self: flex-start;
-  }
-
-  .btn-primary {
-    width: 100%;
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    border-radius: 10px;
-    padding: 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.2s;
-    -webkit-tap-highlight-color: transparent;
-    margin-top: 8px;
-  }
-
+  .setup-hint { font-size: 12px; color: var(--muted); margin-bottom: 28px; line-height: 1.6; align-self: flex-start; }
+  .btn-primary { width: 100%; background: var(--ink); color: var(--paper); border: none; border-radius: 10px; padding: 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; -webkit-tap-highlight-color: transparent; margin-top: 8px; }
   .btn-primary:active { opacity: 0.8; }
 
-  /* ── MASTHEAD ── */
-  .masthead {
-    background: var(--ink);
-    color: var(--paper);
-    padding: 20px 24px 18px;
-    padding-top: calc(20px + env(safe-area-inset-top));
-    position: relative;
-  }
-
-  .masthead-eyebrow {
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--rule);
-    margin-bottom: 4px;
-  }
-
-  .masthead-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 32px;
-    font-weight: 700;
-  }
-
+  /* MASTHEAD */
+  .masthead { background: var(--ink); color: var(--paper); padding: 20px 24px 18px; padding-top: calc(20px + env(safe-area-inset-top)); position: relative; }
+  .masthead-eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rule); margin-bottom: 4px; }
+  .masthead-title { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 700; }
   .masthead-title span { color: var(--accent); }
+  .masthead-date { font-size: 11px; color: var(--rule); margin-top: 6px; font-weight: 300; }
+  .settings-btn { position: absolute; top: calc(20px + env(safe-area-inset-top)); right: 20px; background: none; border: none; color: var(--rule); font-size: 20px; cursor: pointer; padding: 4px; -webkit-tap-highlight-color: transparent; }
 
-  .masthead-date {
-    font-size: 11px;
-    color: var(--rule);
-    margin-top: 6px;
-    font-weight: 300;
-  }
-
-  .settings-btn {
-    position: absolute;
-    top: calc(20px + env(safe-area-inset-top));
-    right: 20px;
-    background: none;
-    border: none;
-    color: var(--rule);
-    font-size: 20px;
-    cursor: pointer;
-    padding: 4px;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  /* ── TRIGGERS ── */
+  /* TRIGGERS */
   .trigger-section { padding: 16px 16px 0; }
-
-  .trigger-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .trigger-btn {
-    background: var(--cream);
-    border: 1.5px solid var(--rule);
-    border-radius: 12px;
-    padding: 14px 12px;
-    text-align: center;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: all 0.15s;
-  }
-
+  .trigger-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .trigger-btn { background: var(--cream); border: 1.5px solid var(--rule); border-radius: 12px; padding: 14px 12px; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s; }
   .trigger-btn:active { transform: scale(0.97); }
   .trigger-btn.loading { opacity: 0.5; pointer-events: none; }
   .trigger-btn.morning { border-color: #e8a020; }
   .trigger-btn.evening { border-color: var(--evening); }
   .trigger-btn.morning .trigger-label { color: var(--morning); }
   .trigger-btn.evening .trigger-label { color: var(--evening); }
-
   .trigger-icon { font-size: 20px; margin-bottom: 3px; }
+  .trigger-label { font-size: 13px; font-weight: 500; display: block; }
+  .trigger-sub { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
 
-  .trigger-label {
-    font-size: 13px;
-    font-weight: 500;
-    display: block;
-  }
-
-  .trigger-sub {
-    font-size: 10px;
-    color: var(--muted);
-    display: block;
-    margin-top: 2px;
-  }
-
-  /* ── SPINNER ── */
-  .spinner-wrap {
-    text-align: center;
-    padding: 30px 20px;
-    display: none;
-  }
-
+  /* SPINNER */
+  .spinner-wrap { text-align: center; padding: 30px 20px; display: none; }
   .spinner-wrap.visible { display: block; }
-
-  .spinner {
-    width: 26px;
-    height: 26px;
-    border: 2.5px solid var(--rule);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 12px;
-  }
-
+  .spinner { width: 26px; height: 26px; border: 2.5px solid var(--rule); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-label { font-size: 13px; color: var(--muted); font-style: italic; }
 
-  .spinner-label {
-    font-size: 13px;
-    color: var(--muted);
-    font-style: italic;
-  }
-
-  /* ── ERROR ── */
-  .error-box {
-    background: #fff0ee;
-    border: 1px solid #f0c0b8;
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin: 12px 16px 0;
-    font-size: 13px;
-    color: #a03020;
-    line-height: 1.5;
-    display: none;
-  }
-
+  /* ERROR */
+  .error-box { background: #fff0ee; border: 1px solid #f0c0b8; border-radius: 10px; padding: 14px 16px; margin: 12px 16px 0; font-size: 13px; color: #a03020; line-height: 1.5; display: none; }
   .error-box.visible { display: block; }
 
-  /* ── DIGEST SECTIONS ── */
+  /* DIGEST */
   .digest-section { margin: 16px 0 0; }
-
-  .digest-header {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 0 16px 10px;
-    border-bottom: 1.5px solid var(--rule);
-    margin: 0 16px 12px;
-    flex-wrap: wrap;
-  }
-
-  .digest-header-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    font-weight: 700;
-  }
-
+  .digest-header { display: flex; align-items: baseline; gap: 8px; padding: 0 16px 10px; border-bottom: 1.5px solid var(--rule); margin: 0 16px 12px; flex-wrap: wrap; }
+  .digest-header-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; }
   .digest-header-title.morning { color: var(--morning); }
   .digest-header-title.evening { color: var(--evening); }
+  .digest-date-pill { display: inline-block; background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 10px; font-size: 10px; color: var(--muted); }
+  .digest-timestamp { font-size: 11px; color: var(--muted); margin-left: auto; }
 
-  .digest-date-pill {
-    display: inline-block;
-    background: var(--cream);
-    border: 1px solid var(--rule);
-    border-radius: 20px;
-    padding: 3px 10px;
-    font-size: 10px;
-    color: var(--muted);
-  }
-
-  .digest-timestamp {
-    font-size: 11px;
-    color: var(--muted);
-    margin-left: auto;
-  }
-
-  /* ── CARDS ── */
+  /* CARDS */
   .cards-wrap { padding: 0 16px; }
-
-  .result-card {
-    background: white;
-    border-radius: 14px;
-    overflow: hidden;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    animation: slideUp 0.3s ease forwards;
-    opacity: 0;
-  }
-
+  .result-card { background: white; border-radius: 14px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); animation: slideUp 0.3s ease forwards; opacity: 0; }
   .result-card.restored { animation: none; opacity: 1; }
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
+  @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   .result-card:nth-child(1) { animation-delay: 0.05s; }
   .result-card:nth-child(2) { animation-delay: 0.12s; }
   .result-card:nth-child(3) { animation-delay: 0.19s; }
   .result-card:nth-child(4) { animation-delay: 0.26s; }
   .result-card:nth-child(5) { animation-delay: 0.33s; }
   .result-card:nth-child(6) { animation-delay: 0.40s; }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 11px 14px 9px;
-    border-bottom: 1px solid #f0ebe0;
-  }
-
-  .card-badge {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-radius: 20px;
-  }
-
+  .card-header { display: flex; align-items: center; gap: 8px; padding: 11px 14px 9px; border-bottom: 1px solid #f0ebe0; }
+  .card-badge { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; }
   .badge-intl  { background: #fff0e6; color: #c05010; }
   .badge-local { background: #e6f0f8; color: #2a4f7a; }
-
-  .card-num {
-    font-size: 11px;
-    color: var(--muted);
-    margin-left: auto;
-    font-family: 'Playfair Display', serif;
-    font-style: italic;
-  }
-
+  .card-num { font-size: 11px; color: var(--muted); margin-left: auto; font-family: 'Playfair Display', serif; font-style: italic; }
   .card-body { padding: 12px 14px 14px; }
+  .card-headline { font-family: 'Playfair Display', serif; font-size: 16px; line-height: 1.4; color: var(--ink); margin-bottom: 10px; }
+  .card-summary { font-size: 13px; line-height: 1.7; color: #3a3530; margin-bottom: 12px; }
+  .card-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+  .source-chip { background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 9px; font-size: 10px; color: var(--muted); font-weight: 500; text-decoration: none; display: inline-block; }
+  .source-chip-link { color: var(--accent); border-color: #e8c0b8; background: #fff5f4; }
+  .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--accent); text-decoration: none; }
 
-  .card-headline {
-    font-family: 'Playfair Display', serif;
-    font-size: 16px;
-    line-height: 1.4;
-    color: var(--ink);
-    margin-bottom: 10px;
-  }
-
-  .card-summary {
-    font-size: 13px;
-    line-height: 1.7;
-    color: #3a3530;
-    margin-bottom: 12px;
-  }
-
-  .card-sources {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 12px;
-  }
-
-  .source-chip {
-    background: var(--cream);
-    border: 1px solid var(--rule);
-    border-radius: 20px;
-    padding: 3px 9px;
-    font-size: 10px;
-    color: var(--muted);
-    font-weight: 500;
-    text-decoration: none;
-    display: inline-block;
-  }
-
-  .source-chip-link {
-    color: var(--accent);
-    border-color: #e8c0b8;
-    background: #fff5f4;
-  }
-
-  .source-chip-link:hover { opacity: 0.8; }
-
-  .card-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--accent);
-    text-decoration: none;
-  }
-
-  /* ── COPY BAR ── */
-  .copy-bar {
-    display: flex;
-    padding: 8px 16px 4px;
-  }
-
-  .btn-copy {
-    flex: 1;
-    border: none;
-    border-radius: 10px;
-    padding: 13px 10px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: opacity 0.2s;
-  }
-
+  /* COPY */
+  .copy-bar { display: flex; padding: 8px 16px 4px; }
+  .btn-copy { flex: 1; border: none; border-radius: 10px; padding: 13px 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity 0.2s; }
   .btn-copy:active { opacity: 0.8; }
   .btn-copy.morning-copy { background: #fff3d6; color: var(--morning); }
   .btn-copy.evening-copy { background: #e6f0f8; color: var(--evening); }
 
-  /* ── NO UPDATE ── */
-  .no-update-card {
-    background: white;
-    border-radius: 14px;
-    padding: 20px;
-    text-align: center;
-    margin: 0 0 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-  }
-
-  .no-update-card p {
-    font-family: 'Playfair Display', serif;
-    font-style: italic;
-    color: var(--muted);
-    font-size: 14px;
-    line-height: 1.6;
-  }
-
+  /* NO UPDATE */
+  .no-update-card { background: white; border-radius: 14px; padding: 20px; text-align: center; margin: 0 0 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .no-update-card p { font-family: 'Playfair Display', serif; font-style: italic; color: var(--muted); font-size: 14px; line-height: 1.6; }
   .bottom-spacer { height: 40px; }
 </style>
 </head>
 <body>
 
-<!-- SETUP SCREEN -->
+<!-- SETUP -->
 <div id="setup-screen">
   <p class="setup-logo">Your morning briefing</p>
   <h1 class="setup-title">Daily <span style="color:var(--accent)">Pulse</span></h1>
   <div class="setup-rule"></div>
   <p class="setup-label">Gemini API Key</p>
   <input type="password" id="gemini-key-input" class="setup-input" placeholder="Paste your Gemini key" autocomplete="off" spellcheck="false">
-  <p class="setup-hint">Get a free key at aistudio.google.com — no other keys needed.</p>
+  <p class="setup-hint">Get a free key at aistudio.google.com</p>
   <button class="btn-primary" onclick="saveKeys()">Save & Open Daily Pulse</button>
 </div>
 
-<!-- MAIN SCREEN -->
+<!-- MAIN -->
 <div id="main-screen" style="display:none">
   <div class="masthead">
     <p class="masthead-eyebrow">Hong Kong Edition</p>
@@ -477,10 +154,8 @@
     <div class="spinner"></div>
     <p class="spinner-label" id="spinner-label">Searching live headlines…</p>
   </div>
-
   <div class="error-box" id="error-box"></div>
 
-  <!-- Morning digest -->
   <div id="morning-section" style="display:none">
     <div class="digest-section">
       <div class="digest-header">
@@ -495,7 +170,6 @@
     </div>
   </div>
 
-  <!-- Evening digest -->
   <div id="evening-section" style="display:none">
     <div class="digest-section">
       <div class="digest-header">
@@ -515,46 +189,66 @@
 
 <script>
 // ── PROMPTS ──
-function buildPrompt(type, morningHeadlines, isFirstRun) {
+
+function researchPrompt(type, morningHeadlines, isFirstRun) {
   const isEvening = type === 'evening';
   const count = isEvening ? 1 : 3;
-
-  const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
-    ? '\n\nIMPORTANT: Do NOT repeat these morning stories — find different ones:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n')
-    : '';
-
   const today = new Date().toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-  const noUpdateRule = isFirstRun
-    ? `- This is the FIRST run of the day. You MUST return at least one international and one local headline no matter what. If nothing qualifies at top 3, keep going to top 4, top 5, top 6, and so on until you find a qualifying story. Do not return empty arrays on a first run.`
-    : `- If no new international stories qualify at top 3 after excluding morning stories, set "no_update_intl": true and international: []
-- If no new local stories qualify at top 3 after excluding morning stories, set "no_update_local": true and local: []`;
+  const firstRunNote = isFirstRun
+    ? 'IMPORTANT: This is the first search of the day. You MUST find at least one story per section. If nothing appears in the top 3 positions across 3 sources, keep checking lower-ranked stories (top 4, 5, 6 and beyond) until you find qualifying stories. Do not leave either section empty.'
+    : 'If no new story qualifies at top 3 positions, it is acceptable to report no update for that section.';
 
-  return `You are Daily Pulse, a news digest for a Hong Kong-based reader. Today is ${today}.
+  const exclusion = (isEvening && morningHeadlines && morningHeadlines.length)
+    ? 'EXCLUDE any story already covered this morning:\n' + morningHeadlines.map((h,i) => (i+1)+'. '+h).join('\n') + '\n\n'
+    : '';
 
-Use Google Search to find today's top headlines. You must ONLY use the exact sources listed. Do not use Al Jazeera, AP, Anadolu Agency, The News Pakistan, or any unlisted source.
+  return 'You are a news research assistant for a Hong Kong reader. Today is ' + today + '.\n\n' +
+    'Search the following sources and identify the top repeated headlines.\n\n' +
+    'INTERNATIONAL SOURCES (search in this order):\n' +
+    '1. Reuters (reuters.com)\n2. BBC News (bbc.com)\n3. Bloomberg (bloomberg.com)\n' +
+    '4. New York Times (nytimes.com)\n5. CNN (cnn.com)\n6. Wall Street Journal (wsj.com)\n' +
+    '7. CNBC (cnbc.com)\n8. Fox News (foxnews.com)\n\n' +
+    'LOCAL HK SOURCES (search in this order):\n' +
+    '1. SCMP (scmp.com)\n2. RTHK (rthk.hk)\n3. HKET (hket.com)\n' +
+    '4. Ming Pao (mingpao.com)\n5. HKT (hkt.com)\n6. On.cc (on.cc)\n7. The Standard (thestandard.com.hk)\n\n' +
+    'RULES:\n' +
+    '- Use ONLY the sources listed. Do NOT include Al Jazeera, AP, Anadolu Agency, The News Pakistan, or any other source.\n' +
+    '- Find the ' + count + ' most repeated international stor' + (count > 1 ? 'ies' : 'y') + ' appearing in the top 3 headline positions of at least 3 international sources.\n' +
+    '- Find the ' + count + ' most repeated local HK stor' + (count > 1 ? 'ies' : 'y') + ' appearing in the top 3 headline positions of at least 3 local sources.\n' +
+    '- Fall back to top 4, top 5, top 6 if needed.\n' +
+    '- ' + firstRunNote + '\n\n' +
+    exclusion +
+    'For each qualifying story write a plain text report with:\n' +
+    '- HEADLINE: the story headline\n' +
+    '- SUMMARY: what happened, why it matters, what comes next (70 words max)\n' +
+    '- SOURCES: list each source name, its position rank, and the direct article URL\n' +
+    '- BEST URL: the single most detailed article link\n\n' +
+    'Write the report in plain prose. Do not use JSON. Do not use markdown code blocks.\n' +
+    'Label sections clearly as INTERNATIONAL STORIES and LOCAL HK STORIES.';
+}
 
-INTERNATIONAL SOURCES ONLY:
-1. Reuters (reuters.com)  2. BBC News (bbc.com)  3. Bloomberg (bloomberg.com)  4. New York Times (nytimes.com)  5. CNN (cnn.com)  6. Wall Street Journal (wsj.com)  7. CNBC (cnbc.com)  8. Fox News (foxnews.com)
+function structurePrompt(researchReport, type, isFirstRun) {
+  const isEvening = type === 'evening';
+  const count = isEvening ? 1 : 3;
+  const firstRunNote = isFirstRun
+    ? 'This was a first run — both international and local arrays must be non-empty.'
+    : 'If a section had no qualifying stories, its array may be empty and set the corresponding no_update flag.';
 
-LOCAL HK SOURCES ONLY:
-1. SCMP (scmp.com)  2. RTHK (rthk.hk)  3. HKET (hket.com)  4. Ming Pao (mingpao.com)  5. HKT (hkt.com)  6. On.cc (on.cc)  7. The Standard (thestandard.com.hk)
-
-RULES:
-- Use ONLY sources listed above. Reject any story not confirmed by these exact outlets.
-- Find the ${count} most repeated international stor${count > 1 ? 'ies' : 'y'} appearing in the TOP 3 positions of at least 3 international sources
-- Find the ${count} most repeated local HK stor${count > 1 ? 'ies' : 'y'} appearing in the TOP 3 positions of at least 3 local sources
-- Fall back to top 4, then top 5, then top 6 and beyond if needed
-${noUpdateRule}${exclusion}
-
-FOR EACH STORY:
-- headline: clear factual headline
-- summary: 70 words maximum. What happened, why it matters, what comes next.
-- sources: array of {name, position, url} — only from the approved lists above
-- url: best single article link
-
-Return ONLY raw JSON starting with { and ending with }. No markdown, no explanation, no preamble.
-Example structure: international array with headline, summary, sources array (name+position+url), and url. Same for local array.`;
+  return 'You are a data formatter. Convert the following news research report into a JSON object.\n\n' +
+    'RESEARCH REPORT:\n' +
+    researchReport + '\n\n' +
+    'OUTPUT RULES:\n' +
+    '- Return a single valid JSON object only. No markdown. No explanation. No code fences.\n' +
+    '- ' + firstRunNote + '\n' +
+    '- international: array of up to ' + count + ' story objects\n' +
+    '- local: array of up to ' + count + ' story objects\n' +
+    '- Each story object: { "headline": "...", "summary": "...", "sources": [{"name":"...","position":1,"url":"..."}], "url":"..." }\n' +
+    '- If international section was empty in the report: "no_update_intl": true, "international": []\n' +
+    '- If local section was empty in the report: "no_update_local": true, "local": []\n' +
+    '- summary must be 70 words or fewer\n' +
+    '- sources must only include: Reuters, BBC, Bloomberg, NYT, CNN, WSJ, CNBC, Fox News, SCMP, RTHK, HKET, Ming Pao, HKT, On.cc, The Standard\n\n' +
+    'Return only the JSON object starting with { and ending with }.';
 }
 
 // ── STATE ──
@@ -563,12 +257,8 @@ let digestStore = { morning: null, evening: null };
 // ── INIT ──
 window.addEventListener('load', () => {
   const gk = localStorage.getItem('dp_gemini_key');
-  if (!gk) {
-    document.getElementById('setup-screen').style.display = 'flex';
-  } else {
-    showMain();
-    restoreDigests();
-  }
+  if (!gk) { document.getElementById('setup-screen').style.display = 'flex'; }
+  else { showMain(); restoreDigests(); }
 });
 
 function saveKeys() {
@@ -612,21 +302,23 @@ async function runDigest(type) {
 
   hideError();
   setLoading(true);
-  updateSpinner('Searching live headlines…');
 
   try {
     const morningHeadlines = (type === 'evening' && digestStore.morning)
       ? (digestStore.morning.items.international || []).map(i => i.headline)
       : [];
 
-    // First run = no existing digest for this type today
     const existingRecord = digestStore[type];
     const today = new Date().toDateString();
     const isFirstRun = !existingRecord || new Date(existingRecord.fetchedAt).toDateString() !== today;
 
-    const prompt = buildPrompt(type, morningHeadlines, isFirstRun);
-    updateSpinner('Analysing across sources…');
-    const parsed = await callGemini(gemKey, prompt);
+    // CALL 1: Research with Google Search grounding
+    updateSpinner('Searching live headlines…');
+    const report = await callGeminiGrounded(gemKey, researchPrompt(type, morningHeadlines, isFirstRun));
+
+    // CALL 2: Structure into JSON without grounding
+    updateSpinner('Structuring results…');
+    const parsed = await callGeminiStructured(gemKey, structurePrompt(report, type, isFirstRun));
 
     const record = { items: parsed, fetchedAt: new Date().toISOString() };
     digestStore[type] = record;
@@ -640,40 +332,67 @@ async function runDigest(type) {
   }
 }
 
-// ── GEMINI WITH SEARCH GROUNDING ──
-async function callGemini(key, prompt) {
+// ── CALL 1: GROUNDED (research) ──
+async function callGeminiGrounded(key, prompt) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + key,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }], role: 'user' }],
         tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 3000 }
+      })
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || 'Gemini search error.');
+
+  // Collect all text parts from grounded response
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const text = parts.filter(p => p.text).map(p => p.text).join('\n');
+  if (!text.trim()) throw new Error('No research results returned. Please try again.');
+  return text;
+}
+
+// ── CALL 2: STRUCTURED (JSON only, no grounding) ──
+async function callGeminiStructured(key, prompt) {
+  const res = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + key,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }], role: 'user' }],
         generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4000
+          temperature: 0.0,
+          maxOutputTokens: 2500,
+          responseMimeType: 'application/json'
         }
       })
     }
   );
-
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || 'Gemini API error. Check your key.');
+  if (!res.ok) throw new Error(data?.error?.message || 'Gemini structure error.');
 
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  let clean = raw.replace(/```json|```/gi, '').trim();
-  const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Could not parse response. Try again in a moment.');
-  return JSON.parse(jsonMatch[0]);
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const raw = parts.filter(p => p.text).map(p => p.text).join('').trim();
+  if (!raw) throw new Error('Empty structure response. Please try again.');
+
+  // Clean and parse
+  const clean = raw.replace(/```json|```/gi, '').trim();
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Could not find JSON in response: ' + clean.substring(0, 120));
+  return JSON.parse(match[0]);
 }
 
 // ── RENDER ──
 function renderSection(type, record, restored) {
-  const section   = document.getElementById(`${type}-section`);
-  const cardsWrap = document.getElementById(`${type}-cards`);
-  const datePill  = document.getElementById(`${type}-date-pill`);
-  const timestamp = document.getElementById(`${type}-timestamp`);
+  const section   = document.getElementById(type + '-section');
+  const cardsWrap = document.getElementById(type + '-cards');
+  const datePill  = document.getElementById(type + '-date-pill');
+  const timestamp = document.getElementById(type + '-timestamp');
 
   const fetchedAt = new Date(record.fetchedAt);
   datePill.textContent  = formatDate(fetchedAt);
@@ -684,15 +403,15 @@ function renderSection(type, record, restored) {
   const local = record.items.local || [];
 
   if (!intl.length && !local.length) {
-    cardsWrap.innerHTML = `<div class="no-update-card"><p>No important update.<br>No headline reached the top-3 threshold.</p></div>`;
+    cardsWrap.innerHTML = '<div class="no-update-card"><p>No important update.<br>No headline reached the threshold.</p></div>';
   } else {
-    if (!intl.length || record.items.no_update_intl) {
-      cardsWrap.insertAdjacentHTML('beforeend', `<div class="no-update-card"><p>🌍 No international update.</p></div>`);
+    if (record.items.no_update_intl || !intl.length) {
+      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>🌍 No international update.</p></div>');
     } else {
       intl.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'intl', i + 1, restored)));
     }
-    if (!local.length || record.items.no_update_local) {
-      cardsWrap.insertAdjacentHTML('beforeend', `<div class="no-update-card"><p>🇭🇰 No local HK update.</p></div>`);
+    if (record.items.no_update_local || !local.length) {
+      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>🇭🇰 No local HK update.</p></div>');
     } else {
       local.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'local', i + 1, restored)));
     }
@@ -709,28 +428,26 @@ function makeCard(item, type, num, restored) {
   const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
 
   const chips = (item.sources || []).map(s => {
-    const pos = s.position ? ` #${s.position}` : '';
-    if (s.url) {
-      return `<a class="source-chip source-chip-link" href="${s.url}" target="_blank">${s.name}${pos}</a>`;
-    }
-    return `<span class="source-chip">${s.name}${pos}</span>`;
+    const pos = s.position ? ' #' + s.position : '';
+    if (s.url) return '<a class="source-chip source-chip-link" href="' + s.url + '" target="_blank">' + s.name + pos + '</a>';
+    return '<span class="source-chip">' + s.name + pos + '</span>';
   }).join('');
 
   const linkHtml = item.url
-    ? `<a class="card-link" href="${item.url}" target="_blank">Read full article →</a>`
+    ? '<a class="card-link" href="' + item.url + '" target="_blank">Read full article →</a>'
     : '';
 
-  card.innerHTML = `
-    <div class="card-header">
-      <span class="card-badge ${badgeClass}">${badgeText}</span>
-      <span class="card-num">${num}</span>
-    </div>
-    <div class="card-body">
-      <p class="card-headline">${item.headline}</p>
-      <p class="card-summary">${item.summary || ''}</p>
-      <div class="card-sources">${chips}</div>
-      ${linkHtml}
-    </div>`;
+  card.innerHTML =
+    '<div class="card-header">' +
+      '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
+      '<span class="card-num">' + num + '</span>' +
+    '</div>' +
+    '<div class="card-body">' +
+      '<p class="card-headline">' + item.headline + '</p>' +
+      '<p class="card-summary">' + (item.summary || '') + '</p>' +
+      '<div class="card-sources">' + chips + '</div>' +
+      linkHtml +
+    '</div>';
   return card;
 }
 
@@ -741,7 +458,7 @@ function copyDigest(type) {
 
   const label     = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
   const fetchedAt = new Date(record.fetchedAt);
-  let text = `${label}\n${formatDate(fetchedAt)} · ${formatTime(fetchedAt)}\n\n`;
+  let text = label + '\n' + formatDate(fetchedAt) + ' · ' + formatTime(fetchedAt) + '\n\n';
 
   const intl  = record.items.international || [];
   const local = record.items.local || [];
@@ -749,25 +466,29 @@ function copyDigest(type) {
   if (intl.length) {
     text += '🌍 INTERNATIONAL\n\n';
     intl.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
-      text += `${i+1}. ${item.headline}\n\n${item.summary || ''}\n\nSources: ${srcs}\n${item.url || ''}\n\n`;
+      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
+      text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
     });
+  } else {
+    text += '🌍 INTERNATIONAL\nNo international update.\n\n';
   }
 
   if (local.length) {
     text += '🇭🇰 LOCAL HK\n\n';
     local.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => `${s.name} #${s.position}`).join(', ');
-      text += `${i+1}. ${item.headline}\n\n${item.summary || ''}\n\nSources: ${srcs}\n${item.url || ''}\n\n`;
+      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
+      text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
     });
+  } else {
+    text += '🇭🇰 LOCAL HK\nNo local HK update.\n\n';
   }
 
-  const btn  = document.querySelector(`.btn-copy.${type}-copy`);
+  const btn  = document.querySelector('.btn-copy.' + type + '-copy');
   const orig = btn.textContent;
 
   navigator.clipboard.writeText(text.trim()).then(() => {
     btn.textContent = '✓ Copied!';
-    setTimeout(() => btn.textContent = orig, 2000);
+    setTimeout(() => { btn.textContent = orig; }, 2000);
   }).catch(() => {
     const ta = document.createElement('textarea');
     ta.value = text.trim();
@@ -777,22 +498,21 @@ function copyDigest(type) {
     document.execCommand('copy');
     document.body.removeChild(ta);
     btn.textContent = '✓ Copied!';
-    setTimeout(() => btn.textContent = orig, 2000);
+    setTimeout(() => { btn.textContent = orig; }, 2000);
   });
 }
 
 // ── HELPERS ──
 function setLoading(on) {
-  document.getElementById('spinner').className       = on ? 'spinner-wrap visible' : 'spinner-wrap';
-  document.getElementById('btn-morning').className   = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
-  document.getElementById('btn-evening').className   = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
+  document.getElementById('spinner').className     = on ? 'spinner-wrap visible' : 'spinner-wrap';
+  document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
+  document.getElementById('btn-evening').className = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
 }
-
 function updateSpinner(msg) { document.getElementById('spinner-label').textContent = msg; }
 function showError(msg)     { const el = document.getElementById('error-box'); el.textContent = msg; el.className = 'error-box visible'; }
 function hideError()        { document.getElementById('error-box').className = 'error-box'; }
-function formatDate(d)      { return d.toLocaleDateString('en-HK',  { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
-function formatTime(d)      { return d.toLocaleTimeString('en-HK',  { hour:'2-digit', minute:'2-digit' }); }
+function formatDate(d)      { return d.toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
+function formatTime(d)      { return d.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' }); }
 </script>
 </body>
 </html>
