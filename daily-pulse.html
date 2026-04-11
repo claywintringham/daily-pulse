@@ -332,214 +332,109 @@ async function runDigest(type) {
   }
 }
 
-// ── CALL 1: GROUNDED (research) ──
+// ── CALL 1: GROUNDED (research) with retry + fallback ──
+const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-lite'];
+
 async function callGeminiGrounded(key, prompt) {
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + key,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }], role: 'user' }],
-        tools: [{ google_search: {} }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 3000 }
-      })
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || 'Gemini search error.');
-
-  // Collect all text parts from grounded response
-  // Grounding responses can have complex structures — extract all text aggressively
-  let text = '';
-
-  // Try primary candidate parts
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  text = parts.filter(p => p.text).map(p => p.text).join('\n');
-
-  // If empty, try all candidates
-  if (!text.trim()) {
-    for (const candidate of (data.candidates || [])) {
-      const cparts = candidate?.content?.parts || [];
-      const ctext = cparts.filter(p => p.text).map(p => p.text).join('\n');
-      if (ctext.trim()) { text = ctext; break; }
-    }
-  }
-
-  // If still empty, check if there is a grounding metadata with snippets we can use
-  if (!text.trim()) {
-    const meta = data.candidates?.[0]?.groundingMetadata;
-    const snippets = meta?.groundingChunks?.map(c => c?.web?.title || '').filter(Boolean).join(', ');
-    if (snippets) throw new Error('Search returned metadata only. Try again in a moment.');
-    // Log the full structure for debugging
-    throw new Error('Empty research response. Structure: ' + JSON.stringify(Object.keys(data)).substring(0, 100));
-  }
-
-  return text;
-}
-
-// ── CALL 2: STRUCTURED (JSON only, no grounding) ──
-async function callGeminiStructured(key, prompt) {
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + key,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }], role: 'user' }],
-        generationConfig: {
-          temperature: 0.0,
-          maxOutputTokens: 16000,
-          responseMimeType: 'application/json'
+  let lastError = null;
+  for (const model of MODELS) {
+    try {
+      updateSpinner('Searching live headlines' + (model === MODELS[0] ? '' : ' (retry)') + '...');
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + key,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }], role: 'user' }],
+            tools: [{ google_search: {} }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 3000 }
+          })
         }
-      })
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || 'Gemini structure error.');
-
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const raw = parts.filter(p => p.text).map(p => p.text).join('').trim();
-  if (!raw) throw new Error('Empty structure response. Please try again.');
-
-  // Clean and parse
-  const clean = raw.replace(/```json|```/gi, '').trim();
-  // Try greedy match first to get full nested object
-  const match = clean.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Could not find JSON in response: ' + clean.substring(0, 120));
-
-  try {
-    return JSON.parse(match[0]);
-  } catch(e) {
-    // If greedy match grabbed too much, try to find the outermost complete object
-    let depth = 0, start = -1, result = null;
-    for (let i = 0; i < clean.length; i++) {
-      if (clean[i] === '{') { if (depth === 0) start = i; depth++; }
-      else if (clean[i] === '}') {
-        depth--;
-        if (depth === 0 && start !== -1) {
-          try { result = JSON.parse(clean.substring(start, i + 1)); break; } catch(e2) {}
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.error?.message || '';
+        if (res.status === 429 || res.status === 503 || msg.toLowerCase().includes('demand') || msg.toLowerCase().includes('overload')) {
+          lastError = new Error(msg || 'Model overloaded.'); continue;
+        }
+        throw new Error(msg || 'Gemini search error.');
+      }
+      let text = '';
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      text = parts.filter(p => p.text).map(p => p.text).join('\n');
+      if (!text.trim()) {
+        for (const candidate of (data.candidates || [])) {
+          const ct = candidate?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n') || '';
+          if (ct.trim()) { text = ct; break; }
         }
       }
-    }
-    if (result) return result;
-    throw new Error('JSON parse failed: ' + clean.substring(0, 150));
-  }
-}
-
-// ── RENDER ──
-function renderSection(type, record, restored) {
-  const section   = document.getElementById(type + '-section');
-  const cardsWrap = document.getElementById(type + '-cards');
-  const datePill  = document.getElementById(type + '-date-pill');
-  const timestamp = document.getElementById(type + '-timestamp');
-
-  const fetchedAt = new Date(record.fetchedAt);
-  datePill.textContent  = formatDate(fetchedAt);
-  timestamp.textContent = formatTime(fetchedAt);
-  cardsWrap.innerHTML   = '';
-
-  const intl  = record.items.international || [];
-  const local = record.items.local || [];
-
-  if (!intl.length && !local.length) {
-    cardsWrap.innerHTML = '<div class="no-update-card"><p>No important update.<br>No headline reached the threshold.</p></div>';
-  } else {
-    if (record.items.no_update_intl || !intl.length) {
-      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>🌍 No international update.</p></div>');
-    } else {
-      intl.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'intl', i + 1, restored)));
-    }
-    if (record.items.no_update_local || !local.length) {
-      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>🇭🇰 No local HK update.</p></div>');
-    } else {
-      local.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'local', i + 1, restored)));
+      if (!text.trim()) { lastError = new Error('Empty research response. Try again.'); continue; }
+      return text;
+    } catch(e) {
+      lastError = e;
+      if (e.message && (e.message.toLowerCase().includes('demand') || e.message.toLowerCase().includes('overload'))) continue;
+      throw e;
     }
   }
-
-  section.style.display = 'block';
+  throw lastError || new Error('All models failed. Please try again later.');
 }
 
-function makeCard(item, type, num, restored) {
-  const card = document.createElement('div');
-  card.className = restored ? 'result-card restored' : 'result-card';
-
-  const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
-  const badgeText  = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
-
-  const chips = (item.sources || []).map(s => {
-    const pos = s.position ? ' #' + s.position : '';
-    if (s.url) return '<a class="source-chip source-chip-link" href="' + s.url + '" target="_blank">' + s.name + pos + '</a>';
-    return '<span class="source-chip">' + s.name + pos + '</span>';
-  }).join('');
-
-  const linkHtml = item.url
-    ? '<a class="card-link" href="' + item.url + '" target="_blank">Read full article →</a>'
-    : '';
-
-  card.innerHTML =
-    '<div class="card-header">' +
-      '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
-      '<span class="card-num">' + num + '</span>' +
-    '</div>' +
-    '<div class="card-body">' +
-      '<p class="card-headline">' + item.headline + '</p>' +
-      '<p class="card-summary">' + (item.summary || '') + '</p>' +
-      '<div class="card-sources">' + chips + '</div>' +
-      linkHtml +
-    '</div>';
-  return card;
-}
-
-// ── COPY ──
-function copyDigest(type) {
-  const record = digestStore[type];
-  if (!record) return;
-
-  const label     = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
-  const fetchedAt = new Date(record.fetchedAt);
-  let text = label + '\n' + formatDate(fetchedAt) + ' · ' + formatTime(fetchedAt) + '\n\n';
-
-  const intl  = record.items.international || [];
-  const local = record.items.local || [];
-
-  if (intl.length) {
-    text += '🌍 INTERNATIONAL\n\n';
-    intl.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
-      text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
-    });
-  } else {
-    text += '🌍 INTERNATIONAL\nNo international update.\n\n';
+// ── CALL 2: STRUCTURED (JSON only, no grounding) with retry + fallback ──
+async function callGeminiStructured(key, prompt) {
+  let lastError = null;
+  for (const model of MODELS) {
+    try {
+      updateSpinner('Structuring results' + (model === MODELS[0] ? '' : ' (retry)') + '...');
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + key,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }], role: 'user' }],
+            generationConfig: { temperature: 0.0, maxOutputTokens: 16000, responseMimeType: 'application/json' }
+          })
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.error?.message || '';
+        if (res.status === 429 || res.status === 503 || msg.toLowerCase().includes('demand') || msg.toLowerCase().includes('overload')) {
+          lastError = new Error(msg || 'Model overloaded.'); continue;
+        }
+        throw new Error(msg || 'Gemini structure error.');
+      }
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const raw = parts.filter(p => p.text).map(p => p.text).join('').trim();
+      if (!raw) { lastError = new Error('Empty structure response.'); continue; }
+      const clean = raw.replace(/```json|```/gi, '').trim();
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (!match) { lastError = new Error('No JSON found: ' + clean.substring(0, 80)); continue; }
+      try {
+        return JSON.parse(match[0]);
+      } catch(e) {
+        let depth = 0, start = -1, result = null;
+        for (let i = 0; i < clean.length; i++) {
+          if (clean[i] === '{') { if (depth === 0) start = i; depth++; }
+          else if (clean[i] === '}') {
+            depth--;
+            if (depth === 0 && start !== -1) {
+              try { result = JSON.parse(clean.substring(start, i + 1)); break; } catch(e2) {}
+            }
+          }
+        }
+        if (result) return result;
+        lastError = new Error('JSON parse failed: ' + clean.substring(0, 80));
+        continue;
+      }
+    } catch(e) {
+      lastError = e;
+      if (e.message && (e.message.toLowerCase().includes('demand') || e.message.toLowerCase().includes('overload'))) continue;
+      throw e;
+    }
   }
-
-  if (local.length) {
-    text += '🇭🇰 LOCAL HK\n\n';
-    local.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s => s.name + ' #' + s.position).join(', ');
-      text += (i+1) + '. ' + item.headline + '\n\n' + (item.summary || '') + '\n\nSources: ' + srcs + '\n' + (item.url || '') + '\n\n';
-    });
-  } else {
-    text += '🇭🇰 LOCAL HK\nNo local HK update.\n\n';
-  }
-
-  const btn  = document.querySelector('.btn-copy.' + type + '-copy');
-  const orig = btn.textContent;
-
-  navigator.clipboard.writeText(text.trim()).then(() => {
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  }).catch(() => {
-    const ta = document.createElement('textarea');
-    ta.value = text.trim();
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  });
+  throw lastError || new Error('All models failed. Please try again later.');
 }
 
 // ── HELPERS ──
