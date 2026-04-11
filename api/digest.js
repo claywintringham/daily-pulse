@@ -1,5 +1,5 @@
 // Daily Pulse — Vercel Serverless Function
-// Handles all three Gemini calls server-side with URL validation
+// Two-call pipeline: Call 1 grounded (find stories + URLs), Call 2 JSON (structure output)
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
@@ -188,56 +188,31 @@ function call1Prompt(type, morningHeadlines, isFirstRun) {
     'Plain text only. No JSON. Label sections INTERNATIONAL STORIES and LOCAL HK STORIES.';
 }
 
-function call2Prompt(trendReport) {
-  return 'You are a URL retrieval assistant. Find EXACT article URLs for each story listed below.\n\n' +
-    'TREND REPORT:\n' + trendReport + '\n\n' +
-    'TASK: For each story and each source, search for the specific article URL.\n' +
-    'Use targeted searches like: site:reuters.com "headline keywords" 2025\n\n' +
-    'APPROVED DOMAINS ONLY: ' + APPROVED_DOMAINS.join(', ') + '\n\n' +
-    'CRITICAL URL RULES:\n' +
-    '- URL MUST be a specific article page with a long unique path\n' +
-    '- GOOD: https://reuters.com/world/us/trump-tariff-china-april-2025-04-11/\n' +
-    '- GOOD: https://bbc.com/news/articles/c9d8xyz123\n' +
-    '- GOOD: https://scmp.com/news/hong-kong/politics/article/3307000/...\n' +
-    '- BAD (homepage): https://reuters.com\n' +
-    '- BAD (section page): https://apnews.com/hub/business\n' +
-    '- BAD (too short): https://bbc.com/news\n' +
-    '- If you cannot find a specific article URL, write NOT FOUND — do NOT use a homepage.\n' +
-    '- WSJ, Bloomberg, FT: mark paywalled:yes. Still find article URL if possible.\n' +
-    '- Never use URLs from unapproved domains.\n\n' +
-    'Output for each story:\n' +
-    'STORY: [headline]\n' +
-    'URLS:\n' +
-    '  - [Source] | paywalled:[yes/no] | [full article URL or NOT FOUND]\n' +
-    'BEST FREE URL: [best free specific article URL, or NOT FOUND]\n\n' +
-    'Plain text only.';
-}
-
-function call3Prompt(trendReport, urlReport, type, isFirstRun, groundingUrls) {
+function call2JsonPrompt(trendReport, type, isFirstRun, groundingUrls) {
   const count = type === 'evening' ? 1 : 2;
   const firstRunNote = isFirstRun
     ? 'CRITICAL: First run. Both arrays must be non-empty with real stories only. No placeholders. No invented sources.'
     : 'Empty arrays allowed if no stories qualified.';
   const groundingSection = (groundingUrls && groundingUrls.length)
-    ? '\nVERIFIED ARTICLE URLs (Gemini sourced these during research — use these first):\n' +
-      groundingUrls.slice(0, 20).map(u => '- ' + u.uri + (u.title ? ' [' + u.title.substring(0, 60) + ']' : '')).join('\n') + '\n'
+    ? '\nVERIFIED ARTICLE URLs (sourced during research — these are real URLs, prefer these):\n' +
+      groundingUrls.slice(0, 25).map(u => '- ' + u.uri + (u.title ? ' [' + u.title.substring(0, 80) + ']' : '')).join('\n') + '\n'
     : '';
 
-  return 'Convert these reports into a single JSON object.\n\n' +
+  return 'Convert this trend report into a JSON object.\n\n' +
     'TREND REPORT:\n' + trendReport + '\n\n' +
-    'URL REPORT:\n' + urlReport + '\n\n' +
     groundingSection +
     'APPROVED SOURCES ONLY: ' + INTL_SOURCES + ', ' + LOCAL_SOURCES + '\n\n' +
     'JSON SCHEMA:\n' +
-    '{"international":[{"headline":"...","time":"X hours ago","summary":"...","source_count":N,"sources":[{"name":"Reuters","position":1,"url":"https://reuters.com/world/story-2025-04-11/","paywalled":false}],"url":"https://reuters.com/world/story-2025-04-11/"}],"local":[...]}\n\n' +
+    '{"international":[{"headline":"...","time":"X hours ago","summary":"...","source_count":N,' +
+    '"sources":[{"name":"Reuters","position":1,"url":"https://reuters.com/world/story-slug-2026-04-12/","paywalled":false}],' +
+    '"url":"https://reuters.com/world/story-slug-2026-04-12/"}],"local":[...]}\n\n' +
     'STRICT RULES:\n' +
     '- ' + firstRunNote + '\n' +
     '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
-    '- ONLY include sources from the approved list. Reject AP News, Global News, Local Gazette, Local Reporter, or any unapproved source.\n' +
+    '- ONLY include sources from the approved list above. Reject any unapproved source name.\n' +
     '- paywalled: true for WSJ, Bloomberg, FT only.\n' +
-    '- story url: MUST be a specific article URL from URL report or VERIFIED ARTICLE URLs. NEVER a homepage. Set null if no specific article URL found.\n' +
-    '- source url: MUST be a specific article URL from URL report or VERIFIED ARTICLE URLs. NEVER a homepage. Set null if NOT FOUND.\n' +
-    '- summary: complete sentences only. Never truncate mid-sentence. 70 words max.\n' +
+    '- story url and source url: ONLY use URLs from VERIFIED ARTICLE URLs above. NEVER a homepage like https://reuters.com. NEVER invent URLs. Set null if not found in VERIFIED list.\n' +
+    '- summary: complete sentences, 70 words max, never truncate mid-sentence.\n' +
     '- source_count: integer count of approved sources covering this story.\n' +
     '- no_update_intl: true if international empty.\n' +
     '- no_update_local: true if local empty.\n' +
@@ -340,30 +315,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Call 1: Identify trending stories + capture grounding URLs
+    // Call 1 (grounded): Find trending stories — captures real article URLs via groundingChunks
     const call1Result = await callGemini(
       call1Prompt(type, morningHeadlines || [], isFirstRun !== false),
       true,
       true
     );
     const trendReport = call1Result.text;
-    const call1Urls = call1Result.groundingUrls || [];
+    const groundingUrls = call1Result.groundingUrls || [];
 
-    // Call 2: Retrieve exact article URLs + capture more grounding URLs
-    const call2Result = await callGemini(
-      call2Prompt(trendReport.substring(0, 4000)),
-      true,
-      true
-    );
-    const urlReport = call2Result.text;
-    const call2Urls = call2Result.groundingUrls || [];
-
-    // Combine all verified grounding URLs from both calls
-    const allGroundingUrls = [...call1Urls, ...call2Urls];
-
-    // Call 3: Structure into JSON, with verified grounding URLs as reference
+    // Call 2 (JSON mode): Structure output using trend report + verified grounding URLs
     const raw = await callGemini(
-      call3Prompt(trendReport.substring(0, 3000), urlReport.substring(0, 3000), type, isFirstRun !== false, allGroundingUrls),
+      call2JsonPrompt(trendReport.substring(0, 4000), type, isFirstRun !== false, groundingUrls),
       false,
       false
     );
