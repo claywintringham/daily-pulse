@@ -1,7 +1,10 @@
 {
   "functions": {
-    "api/digest.js": {
-      "maxDuration": 60
-    }
-  }
+    "api/scrape.js":  { "maxDuration": 300 },
+    "api/digest.js":  { "maxDuration": 120 }
+  },
+  "crons": [
+    { "path": "/api/scrape?type=morning&cron=1", "schedule": "30 22 * * *" },
+    { "path": "/api/scrape?type=evening&cron=1", "schedule": "30 9  * * *" }
+  ]
 }
