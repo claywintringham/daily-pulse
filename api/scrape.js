@@ -112,11 +112,20 @@ export default async function handler(req, res) {
     );
 
     return res.status(200).json({
-      ok:           true,
+      ok:            true,
       type,
-      intlClusters: intlScored.length,
+      intlClusters:  intlScored.length,
       localClusters: localScored.length,
-      elapsedMs:    Date.now() - t0,
+      elapsedMs:     Date.now() - t0,
+      // Debug: per-source adapter results so we can diagnose selector mismatches
+      adapterMeta: adapterResults.map(r => ({
+        sourceId:         r.sourceId,
+        scrapeConfidence: r.scrapeConfidence,
+        itemCount:        (r.items ?? []).length,
+        warnings:         r.warnings ?? [],
+        // Show first 3 item titles so we can verify selectors are hitting real headlines
+        sampleTitles:     (r.items ?? []).slice(0, 3).map(i => i.title),
+      })),
     });
   } catch (err) {
     console.error('[scrape] Fatal error:', err);
