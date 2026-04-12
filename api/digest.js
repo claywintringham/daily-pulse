@@ -145,15 +145,29 @@ function deduplicateByHeadline(clusters, threshold = 0.5) {
 }
 
 /**
- * Filter `clusters` (raw scored/summarised, with `.headline`) to those whose
- * headline does NOT overlap ≥ 40 % with any story in `digestStories`
- * (formatted stories, also with `.headline`).
+ * Filter `clusters` to those not already covered in the other edition's digest.
+ *
+ * Two signals are checked in OR:
+ *   1. Headline token overlap ≥ 0.25 (lowered from 0.4 because the LLM can
+ *      rephrase the same story very differently across editions).
+ *   2. Source-label overlap ≥ 2 shared outlets — if the same news organisations
+ *      appear in both the current cluster and a digest story, they are almost
+ *      certainly reporting the same underlying event regardless of headline wording.
  */
 function notInOtherDigest(clusters, digestStories) {
   if (!digestStories?.length) return clusters;
-  return clusters.filter(c =>
-    !digestStories.some(ds => headlineOverlap(c.headline, ds.headline) >= 0.4)
-  );
+  return clusters.filter(c => {
+    return !digestStories.some(ds => {
+      // Signal 1: headline similarity
+      if (headlineOverlap(c.headline, ds.headline) >= 0.25) return true;
+      // Signal 2: 2+ shared outlet names
+      const cLabels = new Set((c.members ?? []).map(m => (m.label ?? '').toLowerCase()));
+      const dLabels = new Set((ds.sources ?? []).map(s => (s.name ?? '').toLowerCase()));
+      let shared = 0;
+      for (const l of cLabels) if (l && dLabels.has(l)) shared++;
+      return shared >= 2;
+    });
+  });
 }
 
 function detectType(req) {
@@ -301,8 +315,25 @@ export default async function handler(req, res) {
     console.log(`[digest] ${allClusters.length} cluster(s) before editorial filter`);
 
     // ── 4. LLM editorial filter (combined buckets in one call) ──────────────
-    const filtered = await editorialFilter(allClusters);
-    console.log(`[digest] ${filtered.length} cluster(s) after editorial filter`);
+    const editFiltered = await editorialFilter(allClusters);
+
+    // ── 4b. Staleness filter ─────────────────────────────────────────────────
+    // Discard any cluster whose most recent member was published more than
+    // 48 hours ago. RSS feeds can surface old entries; a 5-day-old article
+    // should never appear in today's digest.
+    const STALE_CUTOFF_MS = 48 * 60 * 60 * 1000; // 48 hours
+    const nowMs = Date.now();
+    const filtered = editFiltered.filter(c => {
+      const withDates = (c.members ?? []).filter(
+        m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime())
+      );
+      if (!withDates.length) return true; // no date info → keep (can't tell)
+      const newestMs = Math.max(
+        ...withDates.map(m => new Date(m.publishedAt).getTime())
+      );
+      return (nowMs - newestMs) <= STALE_CUTOFF_MS;
+    });
+    console.log(`[digest] ${filtered.length} cluster(s) after editorial + staleness filter (${editFiltered.length - filtered.length} stale removed)`);
 
     // Re-split by bucket (preserved on each cluster object)
     const filteredIntl  = filtered.filter(c => c.bucket === 'international');
