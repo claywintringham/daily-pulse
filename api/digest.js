@@ -35,7 +35,7 @@ function decodeEntities(text) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-import { editorialFilter, summarizeClusters } from '../lib/llm.js';
+import { editorialFilter, summarizeClusters, translateHeadlines } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
 import { enrichWithRss }  from '../lib/matcher.js';
@@ -379,7 +379,17 @@ async function runInlineScrape() {
     })
   );
 
-  const clusters    = buildClusters(enriched);
+  // Translate Chinese-language headlines before clustering so Jaccard
+  // similarity can match them against English-language sources.
+  const enrichedFinal = await Promise.all(
+    enriched.map(async src => {
+      if (!getById(src.sourceId)?.needsTranslation || !src.items?.length) return src;
+      const translated = await translateHeadlines(src.items);
+      return { ...src, items: translated };
+    })
+  );
+
+  const clusters    = buildClusters(enrichedFinal);
   const intlScored  = scoreClusters(clusters, 'international');
   const localScored = scoreClusters(clusters, 'local');
 
