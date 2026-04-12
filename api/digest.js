@@ -125,6 +125,15 @@ function sanitiseExtract(text) {
     .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
     // Repeated "Exclusive:" video-embed labels left by CNN player
     .replace(/(Exclusive:[^\n]{0,120}\n?){2,}/g, '$1')
+    // BBC / wire-agency article preamble:
+    //   "N time-units ago" + optional byline + image credit + caption
+    //   e.g. "4 hours agoLyse DoucetChief international correspondent,
+    //         in IslamabadGetty ImagesFile photo of JD Vance … Hungary"
+    .replace(/^\d+\s+\w+\s+ago[\s\S]{0,600}?(?:Getty Images?|AFP|Reuters|EPA)[^\n.]{0,300}\.?\s*/i, '')
+    // Fallback: bare relative timestamp at start if no image credit followed above
+    .replace(/^\d+\s+(?:second|minute|hour|day|week)s?\s+ago\s*/im, '')
+    // Orphaned Getty Images credit line anywhere in the extract
+    .replace(/\bGetty Images?[^\n.]{0,250}\.?\s*/gi, '')
     // Collapse any resulting runs of whitespace
     .replace(/\s{2,}/g, ' ')
     .trim();
