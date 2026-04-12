@@ -443,7 +443,8 @@
   let translationCache   = null;   // { [clusterId]: { headline, summary } }
   let currentGeneratedAt = null;
   let speakingId         = null;   // cluster id currently being read aloud, or null
-  let currentAudio       = null;   // HTMLAudioElement currently playing
+  let currentAudio       = null;   // HTMLAudioElement currently playing (Speechify)
+  let cachedVoices       = [];     // Web Speech voices, populated on boot
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -799,8 +800,28 @@
     document.body.removeChild(ta);
   }
 
-  // ── Text-to-speech (Speechify API) ────────────────────────────────
-  // Voice IDs are fetched from /api/voices and cached in localStorage
+  // ── Text-to-speech ────────────────────────────────────────────────
+  // English  → Speechify API (high-quality AI voice via /api/tts)
+  // Chinese  → browser Web Speech API (user's native Mandarin system voice)
+  //
+  // Preload Web Speech voices on boot so they're available for Chinese TTS.
+  function preloadVoices() {
+    if (!window.speechSynthesis) return;
+    const load = () => { cachedVoices = window.speechSynthesis.getVoices(); };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  }
+
+  function pickZhVoice() {
+    const prefs = ['zh-CN', 'zh-TW', 'zh-HK', 'zh'];
+    for (const p of prefs) {
+      const v = cachedVoices.find(v => v.lang.startsWith(p));
+      if (v) return v;
+    }
+    return null;
+  }
+
+  // Voice IDs for Speechify (English only) are fetched from /api/voices and cached in localStorage
   // for 24 hours so they're only looked up once.
   const LS_VOICES_KEY = 'dp_voices';
   const VOICES_TTL_MS = 24 * 60 * 60 * 1000;
@@ -848,33 +869,62 @@
     btn.classList.add('speaking');
     btn.title = 'Stop reading';
 
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    const isZh = currentLang === 'zh';
 
+    // ── Chinese: browser Web Speech (user's native Mandarin system voice) ──
+    if (isZh) {
+      if (!window.speechSynthesis) {
+        speakingId = null;
+        btn.classList.remove('speaking');
+        btn.title = 'Read aloud';
+        return;
+      }
+      const utt  = new SpeechSynthesisUtterance(text);
+      const v    = pickZhVoice();
+      if (v) utt.voice = v;
+      utt.lang  = 'zh-CN';
+      utt.rate  = 0.95;
+      const keepAlive = setInterval(() => {
+        if (!window.speechSynthesis.speaking) { clearInterval(keepAlive); return; }
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }, 10_000);
+      const done = () => {
+        clearInterval(keepAlive);
+        if (speakingId === id) {
+          speakingId = null;
+          btn.classList.remove('speaking');
+          btn.title = 'Read aloud';
+        }
+      };
+      utt.onend = utt.onerror = done;
+      window.speechSynthesis.speak(utt);
+      return;
+    }
+
+    // ── English: Speechify API ──────────────────────────────────────────
     try {
-      const voiceId = await getVoiceId(lang);
-
-      // Bail out if user tapped stop while we were fetching the voice ID
-      if (speakingId !== id) return;
+      const voiceId = await getVoiceId('en');
+      if (speakingId !== id) return; // tapped stop while fetching voice ID
 
       const res = await fetch('/api/tts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, lang, voiceId }),
+        body:    JSON.stringify({ text, lang: 'en', voiceId }),
       });
       if (!res.ok) throw new Error(`TTS ${res.status}`);
-
       if (speakingId !== id) return; // tapped stop while fetching audio
 
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
+      const blob  = await res.blob();
+      const url   = URL.createObjectURL(blob);
       const audio = new Audio(url);
       currentAudio = audio;
 
       const cleanup = () => {
         URL.revokeObjectURL(url);
         if (speakingId === id) {
-          speakingId    = null;
-          currentAudio  = null;
+          speakingId   = null;
+          currentAudio = null;
           btn.classList.remove('speaking');
           btn.title = 'Read aloud';
         }
@@ -885,10 +935,9 @@
 
     } catch (err) {
       console.warn('[tts] Speechify failed, falling back to Web Speech:', err.message);
-      // Web Speech API fallback
       if (window.speechSynthesis && speakingId === id) {
         const utt  = new SpeechSynthesisUtterance(text);
-        utt.lang   = lang === 'zh' ? 'zh-CN' : 'en-US';
+        utt.lang   = 'en-US';
         utt.rate   = 0.95;
         const done = () => {
           if (speakingId === id) {
@@ -980,6 +1029,8 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────
+  preloadVoices(); // cache Web Speech voices for Chinese TTS
+
   // Restore language preference before first render so the UI buttons
   // and all t() calls reflect the correct language immediately.
   (function restoreLang() {
