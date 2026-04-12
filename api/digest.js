@@ -64,7 +64,7 @@ const STALE_WINDOW_MS = 36 * 60 * 60 * 1000; // 36 hours
  */
 const LEARN_MORE_PRIORITY = [
   'ap', 'reuters', 'bbc', 'guardian', 'rthk', 'hkfp', 'thestandard', 'scmp',
-  'cnbc', 'aljazeera', 'dw', 'france24', 'nbcnews', 'cbsnews',
+  'cnbc', 'cnn', 'aljazeera', 'dw', 'france24', 'nbcnews', 'cbsnews',
   'foxnews', 'foxbusiness',
 ];
 
@@ -152,7 +152,10 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
  * teaser from being accepted as the summary source for a different story.
  *
  * Requires ≥ 25 % of meaningful headline tokens (length > 3) to appear in the
- * excerpt, with a floor of 1 match.
+ * excerpt, with a floor of 2 matches (not 1).  A floor of 1 was too loose —
+ * common words like "after" or "into" could appear in any article and satisfy
+ * the check, letting completely off-topic excerpts through (e.g. an Iran article
+ * passing for an Artemis headline because "after" appeared in both).
  */
 function excerptIsRelevant(headline, excerpt) {
   if (!headline || !excerpt) return false;
@@ -164,8 +167,18 @@ function excerptIsRelevant(headline, excerpt) {
   if (!tokens.length) return true; // nothing meaningful to check
   const ex = excerpt.toLowerCase();
   const hits = tokens.filter(t => ex.includes(t)).length;
-  return hits >= Math.max(1, Math.floor(tokens.length * 0.25));
+  return hits >= Math.max(2, Math.floor(tokens.length * 0.25));
 }
+
+/**
+ * URL patterns that produce unusable excerpts:
+ *   - Live blogs: AP, CBS, BBC etc. use template placeholders like [hour]:[minute]
+ *     that bleed into the extracted text and confuse the LLM.
+ *   - Video pages: NBC /video/, CNN /video/, etc. return "Now Playing / Up Next"
+ *     boilerplate rather than article prose.
+ * These are skipped early so the fetch loop moves on to the next source URL.
+ */
+const SKIP_URL_RE = /\/(live[-/]|live-updates|live-blog|liveblog)|\/video(s)?\/|\/(watch)\//i;
 
 /**
  * Best-effort fetch of the article at `url`.
@@ -174,6 +187,7 @@ function excerptIsRelevant(headline, excerpt) {
  */
 async function fetchArticleExcerpt(url) {
   if (!url) return null;
+  if (SKIP_URL_RE.test(url)) return null; // live blogs and video pages produce unusable text
   try {
     const res = await fetch(url, {
       headers: {
