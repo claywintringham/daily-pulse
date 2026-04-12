@@ -366,8 +366,7 @@
   // ── Formatting helpers ─────────────────────────────────────────────
   function fmtDate(iso) {
     if (!iso) return '';
-    return new Date(iso).toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
+    return new Date(iso).toLocaleString(undefined, {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
@@ -378,12 +377,10 @@
     if (!iso) return null;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
+    const time = d.toLocaleString(undefined, {
       hour: '2-digit', minute: '2-digit',
     });
-    const date = d.toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
+    const date = d.toLocaleString(undefined, {
       day: 'numeric', month: 'short',
     });
     return `${time} · ${date}`;
