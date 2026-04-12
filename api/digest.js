@@ -146,7 +146,17 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
     const reader  = new Readability(document);
     const article = reader.parse();
     if (article?.textContent) {
-      return sanitiseExtract(article.textContent.replace(/\s+/g, ' ').trim()).slice(0, maxChars);
+      // Sanitise *before* collapsing whitespace so that \n boundaries are
+      // available to the BBC preamble patterns in sanitiseExtract().
+      // Without this, "Getty Images caption…" flows directly into the first
+      // article sentence (no newline separator) and the [^\n.]{0,300} quantifier
+      // eats article body text until it finds the next period.
+      const raw = article.textContent
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')   // collapse blank runs but keep paragraph breaks
+        .replace(/[ \t]+/g, ' ')       // normalise horizontal space only
+        .trim();
+      return sanitiseExtract(raw).replace(/\s+/g, ' ').trim().slice(0, maxChars);
     }
   } catch { /* Readability failed — fall through */ }
 
