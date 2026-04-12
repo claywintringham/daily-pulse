@@ -295,6 +295,34 @@
 
     .learn-more-link:hover { text-decoration: underline; }
 
+    /* ── Section copy button ────────────────────────────────────────── */
+    .copy-btn {
+      font-family: var(--ui);
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      padding: 0.18rem 0.55rem;
+      cursor: pointer;
+      color: var(--ink-faint);
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--ink-mid);
+      color: var(--ink);
+      background: var(--chip-bg);
+    }
+
+    .copy-btn.copied {
+      color: #2a7a2a;
+      border-color: #2a7a2a;
+    }
+
     /* ── Footer ─────────────────────────────────────────────────────── */
     footer {
       border-top: 1px solid var(--rule);
@@ -356,6 +384,7 @@
   }
 
   let currentEdition = detectEdition();
+  let currentDigestData = null; // stored on load so copySection can access stories
 
   function setEdition(ed) {
     currentEdition = ed;
@@ -425,20 +454,75 @@
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
         ${timeHtml}
-        ${c.summary ? `<p class="story-summary">${c.summary}</p>` : ''}
+        <p class="story-summary">${c.summary}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
         ${learnMore}
       </article>`;
   }
 
-  function renderSection(label, clusters) {
+  function renderSection(label, clusters, tag) {
     if (!clusters || clusters.length === 0) return '';
+    const copyBtn = tag
+      ? `<button class="copy-btn" onclick="copySection('${tag}', this)">Copy</button>`
+      : '';
     return `
       <div class="section-header">
         <span class="section-label">${label}</span>
         <span class="section-rule"></span>
+        ${copyBtn}
       </div>
       ${clusters.map(renderCluster).join('')}`;
+  }
+
+  // ── Copy-to-clipboard ──────────────────────────────────────────────
+  // Builds plain Markdown-compatible text for a section's stories,
+  // suitable for pasting into Capacities, Notion, Obsidian, etc.
+  //
+  // Format per story:
+  //   [Headline]
+  //   [Summary]
+  //   [Learn more](url)
+  //   #tag
+  function buildSectionText(clusters, tag) {
+    return clusters.map(c => {
+      const url  = c.learnMoreUrl || c.readUrl || '';
+      const link = url ? `[Learn more](${url})` : '';
+      return [c.headline, c.summary, link, `#${tag}`]
+        .filter(Boolean)
+        .join('\n');
+    }).join('\n\n');
+  }
+
+  function copySection(tag, btn) {
+    if (!currentDigestData) return;
+    const clusters = tag === 'international'
+      ? (currentDigestData.international || [])
+      : (currentDigestData.local || []);
+    if (!clusters.length) return;
+
+    const text = buildSectionText(clusters, tag);
+
+    const finish = () => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+    } else {
+      fallbackCopy(text, finish);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch {}
+    document.body.removeChild(ta);
   }
 
   function renderDigest(data) {
@@ -453,7 +537,7 @@
       </div>`;
     }
 
-    const intl = renderSection('International', data.international);
+    const intl = renderSection('International', data.international, 'international');
 
     // Evening edition: show notice when intl has new stories but local has none
     let local;
@@ -465,7 +549,7 @@
         </div>
         <p class="no-update-local">No new Hong Kong stories since the Morning Edition.</p>`;
     } else {
-      local = renderSection('Hong Kong', data.local);
+      local = renderSection('Hong Kong', data.local, 'local');
     }
 
     if (!intl && !local) {
@@ -491,6 +575,7 @@
       const res = await fetch(`/api/digest?type=${edition}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
+      currentDigestData = data; // make available to copySection
 
       meta.textContent = `${editionLabel(data.type)} · ${fmtDate(data.generatedAt)}`;
       main.innerHTML = renderDigest(data);
