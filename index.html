@@ -264,6 +264,37 @@
       border-bottom: 1px solid var(--rule);
     }
 
+    /* ── Breaking badge ─────────────────────────────────────────────── */
+    .breaking-badge {
+      font-family: var(--ui);
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--accent);
+      padding: 0.13rem 0.38rem;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+      display: inline-block;
+      line-height: 1.6;
+    }
+
+    /* ── Learn more link ────────────────────────────────────────────── */
+    .learn-more-link {
+      display: inline-block;
+      margin-top: 0.55rem;
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+
+    .learn-more-link:hover { text-decoration: underline; }
+
     /* ── Footer ─────────────────────────────────────────────────────── */
     footer {
       border-top: 1px solid var(--rule);
@@ -380,17 +411,23 @@
   }
 
   function renderCluster(c) {
+    const badge    = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
+    const headText = `${badge}${c.headline}`;
     const headline = c.readUrl
-      ? `<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
-      : c.headline;
-    const pubTime  = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
+      ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
+      : headText;
+    const pubTime   = fmtPublished(c.publishedAt);
+    const timeHtml  = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
+    const learnMore = c.learnMoreUrl
+      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">Learn more →</a>`
+      : '';
     return `
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
         ${timeHtml}
         <p class="story-summary">${c.summary}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
+        ${learnMore}
       </article>`;
   }
 
