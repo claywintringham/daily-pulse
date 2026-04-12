@@ -21,6 +21,7 @@ import { buildClusters }  from '../lib/cluster.js';
 import { scoreClusters }  from '../lib/scorer.js';
 import { getById }        from '../lib/sourceRegistry.js';
 import { set as redisSet } from '../lib/redis.js';
+import { translateHeadlines } from '../lib/llm.js';
 
 export const config = { maxDuration: 300 };
 
@@ -81,8 +82,21 @@ export default async function handler(req, res) {
     );
     console.log(`[scrape] RSS enrichment done in ${Date.now() - t0} ms`);
 
+    // ── Step 2.5: Translate Chinese-language headlines ──────────────────────
+    // Sources flagged needsTranslation:true have Chinese titles that must be
+    // converted to English before Jaccard clustering can match them against
+    // English-language sources.
+    const enrichedFinal = await Promise.all(
+      enriched.map(async src => {
+        if (!getById(src.sourceId)?.needsTranslation || !src.items?.length) return src;
+        const translated = await translateHeadlines(src.items);
+        return { ...src, items: translated };
+      })
+    );
+    console.log(`[scrape] Translation done in ${Date.now() - t0} ms`);
+
     // ── Step 3: Cross-source clustering ────────────────────────────────────
-    const clusters = buildClusters(enriched);
+    const clusters = buildClusters(enrichedFinal);
     console.log(`[scrape] Built ${clusters.length} cluster(s)`);
 
     // ── Step 4: Score per bucket ────────────────────────────────────────────
