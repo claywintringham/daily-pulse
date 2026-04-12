@@ -126,7 +126,7 @@ function sanitiseExtract(text) {
     .replace(/^[\s:,;]+/m, '')
     // Bare AP dateline at paragraph start: "JERUSALEM (AP) — " or "BUDAPEST, Hungary (AP) — "
     // Also accepts a plain hyphen in case the em-dash didn't survive encoding.
-    .replace(/^[A-Z][A-Za-z ,]+\([A-Z]+\)\s*[—–\-]\s*/m, '')
+        .replace(/^[A-Z][A-Za-z ,.]+\([A-Z]+\)\s*[—–\-]\s*/m, '')
     // Video duration chip: "3:45 • Source: CNN" or "3:45 · Source: ..."
     .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
     // Repeated "Exclusive:" video-embed labels left by CNN player
@@ -242,7 +242,7 @@ function excerptIsRelevant(headline, excerpt) {
  *     boilerplate rather than article prose.
  * These are skipped early so the fetch loop moves on to the next source URL.
  */
-const SKIP_URL_RE = /\/(live[-/]|live-updates|live-blog|liveblog)|\/video(s)?\/|\/(watch)\//i;
+const SKIP_URL_RE = /\/(live[-\/]|live-updates|live-blog|liveblog)|\/video(s)?\/|\/(watch)\/|\/photo-gallery\//i;
 
 /**
  * Best-effort fetch of the article at `url`.
