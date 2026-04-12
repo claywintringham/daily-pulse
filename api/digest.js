@@ -1,5 +1,6 @@
 // Daily Pulse — Vercel Serverless Function
-// Two-call pipeline: Call 1 grounded (find stories + URLs), Call 2 JSON (structure output)
+// Two-call pipeline: Call 1 grounded (find stories), Call 2 JSON (structure output)
+// RSS feeds fetched in parallel with Call 1 to provide verified article URLs
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
@@ -20,6 +21,20 @@ const LOCAL_SOURCES = 'SCMP (scmp.com), RTHK (rthk.hk), HKET (hket.com), ' +
   'The Standard (thestandard.com.hk), HKFP (hongkongfp.com)';
 const FORBIDDEN = 'Al Jazeera, Anadolu Agency, The News Pakistan, Kurdistan24, ' +
   'Local Gazette, Global News, Times of India, or any outlet not in the approved lists';
+
+// RSS feeds for approved free sources (reliable, direct article URLs)
+const RSS_FEEDS = [
+  { source: 'Reuters',      url: 'https://feeds.reuters.com/reuters/topNews' },
+  { source: 'BBC',          url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { source: 'AP',           url: 'https://rsshub.app/apnews/topics/apf-topnews' },
+  { source: 'CNN',          url: 'http://rss.cnn.com/rss/edition.rss' },
+  { source: 'CNBC',         url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },
+  { source: 'The Guardian', url: 'https://www.theguardian.com/world/rss' },
+  { source: 'NBC News',     url: 'https://feeds.nbcnews.com/nbcnews/public/news' },
+  { source: 'SCMP',         url: 'https://www.scmp.com/rss/91/feed' },
+  { source: 'HKFP',         url: 'https://hongkongfp.com/feed/' },
+  { source: 'RTHK',         url: 'https://rthk.hk/rthk/en/rss/news.xml' },
+];
 
 // ── URL VALIDATION ──
 
@@ -70,6 +85,55 @@ function prepareGroundingUrls(rawUrls) {
   return rawUrls
     .slice(0, 25)
     .filter(({ uri }) => isVertexRedirect(uri) || (isApprovedDomain(uri) && isArticleUrl(uri)));
+}
+
+// Fetch recent article URLs from RSS feeds in parallel — reliable direct article URLs
+async function fetchRssUrls(type) {
+  const recencyMs = (type === 'evening' ? 8 : 24) * 3600000;
+  const cutoff = Date.now() - recencyMs;
+
+  const results = await Promise.all(
+    RSS_FEEDS.map(async ({ source, url }) => {
+      try {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 6000);
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'DailyPulse/1.0 (news digest)' },
+          redirect: 'follow',
+          signal: ac.signal
+        });
+        clearTimeout(timer);
+        if (!res.ok) return [];
+        const xml = await res.text();
+        const items = [];
+        // Parse <item> blocks from RSS/Atom
+        const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+        let m;
+        while ((m = itemRe.exec(xml)) !== null) {
+          const block = m[1];
+          // Extract link (prefer <link> text, fallback to guid)
+          const linkMatch = block.match(/<link>([^<]+)<\/link>/) ||
+                            block.match(/<link[^>]+href="([^"]+)"/) ||
+                            block.match(/<guid[^>]*>([^<]+)<\/guid>/);
+          if (!linkMatch) continue;
+          const link = linkMatch[1].trim();
+          if (!isApprovedDomain(link) || !isArticleUrl(link)) continue;
+          // Extract title
+          const titleMatch = block.match(/<title[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
+                             block.match(/<title[^>]*>([^<]*)<\/title>/);
+          const title = titleMatch ? titleMatch[1].trim().substring(0, 100) : '';
+          // Extract pubDate and filter by recency
+          const pubMatch = block.match(/<pubDate[^>]*>([^<]+)<\/pubDate>/);
+          const pubDate = pubMatch ? new Date(pubMatch[1]).getTime() : Date.now();
+          if (isNaN(pubDate) || pubDate >= cutoff) {
+            items.push({ uri: link, title: source + ': ' + title });
+          }
+        }
+        return items.slice(0, 8); // max 8 per source
+      } catch { return []; }
+    })
+  );
+  return results.flat();
 }
 
 // ── GEMINI API CALL ──
@@ -218,7 +282,8 @@ function call2JsonPrompt(trendReport, type, isFirstRun, groundingUrls) {
     ? '\nVERIFIED ARTICLE URLs (sourced during research — these are real URLs, prefer these):\n' +
       groundingUrls.slice(0, 25).map(u => '- ' + u.uri + (u.title ? ' [' + u.title.substring(0, 80) + ']' : '')).join('\n') + '\n'
     : '';
-    return 'Convert this trend report into a JSON object.\n\n' +
+
+  return 'Convert this trend report into a JSON object.\n\n' +
     'TREND REPORT:\n' + trendReport + '\n\n' +
     groundingSection +
     'APPROVED SOURCES ONLY: ' + INTL_SOURCES + ', ' + LOCAL_SOURCES + '\n\n' +
@@ -336,16 +401,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Call 1 (grounded): Find trending stories — captures real article URLs via groundingChunks
-    const call1Result = await callGemini(
-      call1Prompt(type, morningHeadlines || [], isFirstRun !== false),
-      true,
-      true
-    );
+    // Run Call 1 (grounded search) + RSS feed fetch in parallel to save time
+    const [call1Result, rssUrls] = await Promise.all([
+      callGemini(
+        call1Prompt(type, morningHeadlines || [], isFirstRun !== false),
+        true, true
+      ),
+      fetchRssUrls(type)
+    ]);
     const trendReport = call1Result.text;
-    // Pass Vertex AI redirect URLs directly — browser follows redirects to real articles
-    const rawGroundingUrls = call1Result.groundingUrls || [];
-    const groundingUrls = prepareGroundingUrls(rawGroundingUrls);
+    // Combine grounding chunks + RSS article URLs for verified source links
+    const groundingUrls = [
+      ...prepareGroundingUrls(call1Result.groundingUrls || []),
+      ...rssUrls
+    ].slice(0, 30);
 
     // Call 2 (JSON mode): Structure output using trend report + verified grounding URLs
     const raw = await callGemini(
