@@ -353,6 +353,20 @@
     .lang-toggle button.active   { background: var(--ink); color: var(--bg); }
     .lang-toggle button:disabled { cursor: default; }
 
+    #main-content { transition: opacity 0.2s; }
+    #main-content.translating { opacity: 0.35; pointer-events: none; }
+
+    .translating-bar {
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.04em;
+      text-align: center;
+      padding: 0.4rem 0 0;
+      display: none;
+    }
+    .translating-bar.visible { display: block; }
+
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }
@@ -368,6 +382,7 @@
     <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-meta" id="meta-line">Loading…</p>
+    <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
     <div class="masthead-controls">
       <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -517,11 +532,13 @@
   }
 
   function getDisplayText(c) {
-    const tr = translationCache?.[c.id];
-    return {
-      headline: tr?.headline ?? c.headline,
-      summary:  tr?.summary  ?? c.summary,
-    };
+    if (currentLang === 'zh' && translationCache?.[c.id]) {
+      return {
+        headline: translationCache[c.id].headline,
+        summary:  translationCache[c.id].summary,
+      };
+    }
+    return { headline: c.headline, summary: c.summary };
   }
 
   function renderCluster(c, tag, isNew) {
@@ -589,12 +606,19 @@
     const btnEn = document.getElementById('lang-en');
     const btnZh = document.getElementById('lang-zh');
 
+    const main = document.getElementById('main-content');
+    const bar  = document.getElementById('translating-bar');
+
     if (lang === 'zh') {
       if (!currentDigestData) return;
       btnEn.disabled = btnZh.disabled = true;
       btnZh.textContent = '…';
 
       if (!translationCache) {
+        // Show fade + translating label while the Gemini call runs (~10 s)
+        if (main) main.classList.add('translating');
+        if (bar)  bar.classList.add('visible');
+
         const items = [
           ...(currentDigestData.international || []),
           ...(currentDigestData.local         || []),
@@ -613,10 +637,15 @@
           );
         } catch (err) {
           console.error('[lang] translation failed:', err);
+          if (main) main.classList.remove('translating');
+          if (bar)  bar.classList.remove('visible');
           btnEn.disabled = btnZh.disabled = false;
           btnZh.textContent = '中';
           return;
         }
+
+        if (main) main.classList.remove('translating');
+        if (bar)  bar.classList.remove('visible');
       }
 
       currentLang = 'zh';
