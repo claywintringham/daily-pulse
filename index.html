@@ -254,6 +254,16 @@
 
     .state-box p { font-size: 0.85rem; }
 
+    /* ── No-update notice (local section, evening edition) ─────────── */
+    .no-update-local {
+      font-family: var(--ui);
+      font-size: 0.85rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      padding: 1rem 0 1.25rem;
+      border-bottom: 1px solid var(--rule);
+    }
+
     /* ── Footer ─────────────────────────────────────────────────────── */
     footer {
       border-top: 1px solid var(--rule);
@@ -406,8 +416,20 @@
       </div>`;
     }
 
-    const intl  = renderSection('International', data.international);
-    const local = renderSection('Hong Kong', data.local);
+    const intl = renderSection('International', data.international);
+
+    // Evening edition: show notice when intl has new stories but local has none
+    let local;
+    if (data.localNoUpdate) {
+      local = `
+        <div class="section-header">
+          <span class="section-label">Hong Kong</span>
+          <span class="section-rule"></span>
+        </div>
+        <p class="no-update-local">No new Hong Kong stories since the Morning Edition.</p>`;
+    } else {
+      local = renderSection('Hong Kong', data.local);
+    }
 
     if (!intl && !local) {
       return `<div class="state-box"><h2>No stories yet</h2>
