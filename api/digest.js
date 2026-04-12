@@ -95,17 +95,60 @@ function pickLearnMoreUrl(c) {
  * Strips scripts, styles, and navigation blocks; joins <p> tag content.
  * Returns up to `maxChars` characters so the LLM prompt stays concise.
  */
-function extractTextFromHtml(html, maxChars = 900) {
-  return html
-    // Remove non-content blocks entirely
-    .replace(/<(script|style|noscript|nav|header|footer|aside|figure|figcaption)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    // Extract paragraph text (keep a space between tags)
+function extractTextFromHtml(html, maxChars = 1500) {
+  // Remove non-content blocks entirely
+  const cleaned = html.replace(
+    /<(script|style|noscript|nav|header|footer|aside|figure|figcaption|menu)[^>]*>[\s\S]*?<\/\1>/gi, ' '
+  );
+
+  // Prefer <p> tag content — article text lives in paragraphs; nav/menu items rarely do.
+  // This prevents the first 900 chars being consumed by navigation links.
+  const pRe = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  const paragraphs = [];
+  let pm;
+  while ((pm = pRe.exec(cleaned)) !== null) {
+    const text = pm[1]
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+      .replace(/&#\d+;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text.length > 40) paragraphs.push(text); // skip nav links, short UI labels
+  }
+
+  if (paragraphs.length > 0) {
+    return paragraphs.join(' ').slice(0, maxChars);
+  }
+
+  // Fallback: strip all tags and take first maxChars
+  return cleaned
     .replace(/<[^>]+>/g, ' ')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
     .replace(/&#\d+;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxChars);
+}
+
+/**
+ * Return true when the excerpt contains enough tokens from the cluster headline
+ * to be considered on-topic.  Prevents a financial sidebar or related-article
+ * teaser from being accepted as the summary source for a different story.
+ *
+ * Requires ≥ 25 % of meaningful headline tokens (length > 3) to appear in the
+ * excerpt, with a floor of 1 match.
+ */
+function excerptIsRelevant(headline, excerpt) {
+  if (!headline || !excerpt) return false;
+  const tokens = headline
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3);
+  if (!tokens.length) return true; // nothing meaningful to check
+  const ex = excerpt.toLowerCase();
+  const hits = tokens.filter(t => ex.includes(t)).length;
+  return hits >= Math.max(1, Math.floor(tokens.length * 0.25));
 }
 
 /**
@@ -149,9 +192,9 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
       c._learnMoreUrl = urls[0]; // best URL for the "Learn more" link
       for (const url of urls) {
         const excerpt = await fetchArticleExcerpt(url);
-        if (excerpt) {
+        if (excerpt && excerptIsRelevant(c.headline, excerpt)) {
           c.articleExcerpt = excerpt;
-          break; // got real content — stop trying
+          break; // got real, on-topic content — stop trying
         }
       }
     }));
