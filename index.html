@@ -204,9 +204,26 @@
       pointer-events: none;
     }
 
+    /* Free source with no confirmed URL — show as plain unlinked chip (no lock) */
+    .chip.unlinked {
+      cursor: default;
+      pointer-events: none;
+    }
+
     .chip-pos {
       color: var(--ink-faint);
       font-weight: 400;
+    }
+
+    /* ── Publication time ───────────────────────────────────────────── */
+    .story-time {
+      display: block;
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.5rem;
     }
 
     /* ── Loading / error states ─────────────────────────────────────── */
@@ -317,6 +334,22 @@
     });
   }
 
+  // Format publication time compactly: "3:15 pm · 12 Apr"
+  function fmtPublished(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const time = d.toLocaleString('en-HK', {
+      timeZone: 'Asia/Hong_Kong',
+      hour: '2-digit', minute: '2-digit',
+    });
+    const date = d.toLocaleString('en-HK', {
+      timeZone: 'Asia/Hong_Kong',
+      day: 'numeric', month: 'short',
+    });
+    return `${time} · ${date}`;
+  }
+
   function editionLabel(type) {
     return type === 'morning' ? '☀︎ Morning Edition' : '◑ Evening Edition';
   }
@@ -324,12 +357,15 @@
   // ── Render ─────────────────────────────────────────────────────────
   function renderChips(sources) {
     return sources.map(s => {
-      if (s.paywalled || !s.url) {
+      if (s.paywalled) {
+        // Paywalled source: greyed out, no link, lock icon
         return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
       }
-      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">
-        ${s.name} <span class="chip-pos">#${s.position}</span>
-      </a>`;
+      if (!s.url) {
+        // Free source but no confirmed article URL — plain unlinked chip, no lock
+        return `<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`;
+      }
+      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`;
     }).join('');
   }
 
@@ -337,9 +373,12 @@
     const headline = c.readUrl
       ? `<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
       : c.headline;
+    const pubTime  = fmtPublished(c.publishedAt);
+    const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
     return `
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
+        ${timeHtml}
         <p class="story-summary">${c.summary}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
       </article>`;
@@ -356,6 +395,17 @@
   }
 
   function renderDigest(data) {
+    // Evening "no update" state
+    if (data.noUpdate) {
+      const sinceTime = data.morningGeneratedAt
+        ? ` since the Morning Edition (${fmtDate(data.morningGeneratedAt)})`
+        : '';
+      return `<div class="state-box">
+        <h2>No new stories</h2>
+        <p>No significant updates${sinceTime}. Check back later this evening.</p>
+      </div>`;
+    }
+
     const intl  = renderSection('International', data.international);
     const local = renderSection('Hong Kong', data.local);
 
