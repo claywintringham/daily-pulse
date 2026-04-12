@@ -499,81 +499,79 @@ export default async function handler(req, res) {
     let morningGeneratedAt = null;
 
     if (type === 'evening') {
-      // ── Evening: only stories newer/more important than morning ────────────
-      const morningDigest = await redisGet('digest:morning').catch(() => null);
+      // ── Evening: stories not in morning's top set, plus breaking news ───────
+      //
+      // The dedup is computed deterministically from the current ranked pool —
+      // we don't rely on the morning Redis cache being present. This eliminates
+      // the race condition where both editions are reset at the same time and
+      // evening has no morning cache to compare against.
+      //
+      // Breaking stories (isBreaking=true, majority published in last 4h) always
+      // appear in evening even if they also rank in morning's top set, so that
+      // major events that broke during the day are always surfaced.
 
-      if (morningDigest?.generatedAt) {
-        morningGeneratedAt = morningDigest.generatedAt;
-        const morningStories = [
-          ...(morningDigest.international ?? []),
-          ...(morningDigest.local         ?? []),
-        ];
+      // What morning "would" show — top N from the same ranked pool
+      const mCounts = STORY_COUNTS.morning;
+      const morningRef = [
+        ...summarisedIntl.slice(0, mCounts.intl),
+        ...summarisedLocal.slice(0, mCounts.local),
+      ].map(c => ({
+        headline: c.headline,
+        sources:  (c.members ?? []).map(m => ({ name: m.label ?? '' })),
+      }));
 
-        // Keep stories not already covered in morning (scorer order = importance)
-        finalIntl  = notInOtherDigest(summarisedIntl,  morningStories).slice(0, counts.intl);
-        finalLocal = notInOtherDigest(summarisedLocal, morningStories).slice(0, counts.local);
+      // Fetch morningGeneratedAt for display only — non-fatal if missing
+      const morningCache = await redisGet('digest:morning').catch(() => null);
+      if (morningCache?.generatedAt) morningGeneratedAt = morningCache.generatedAt;
 
-        if (finalIntl.length === 0 && finalLocal.length === 0) {
-          noUpdate = true;
-          console.log('[digest] Evening: no new stories vs morning — returning noUpdate');
-        } else {
-          // Per-section safety net for evening: if one section is empty but
-          // stories exist (editorial fallback fired), show top-ranked rather
-          // than leaving the section blank.
-          if (finalIntl.length === 0 && summarisedIntl.length > 0) {
-            console.warn('[digest] Evening: intl empty after dedup — falling back to top-ranked intl');
-            finalIntl = summarisedIntl.slice(0, counts.intl);
-          }
-          if (finalLocal.length === 0) {
-            if (summarisedLocal.length > 0) {
-              console.warn('[digest] Evening: local empty after dedup — falling back to top-ranked local');
-              finalLocal = summarisedLocal.slice(0, counts.local);
-            } else if (finalIntl.length > 0) {
-              localNoUpdate = true;
-              console.log('[digest] Evening: no new local stories vs morning');
-            }
+      // Breaking stories bypass dedup; non-breaking stories are filtered
+      const breakingIntl  = summarisedIntl.filter(c => c.isBreaking);
+      const breakingLocal = summarisedLocal.filter(c => c.isBreaking);
+      const newIntl       = notInOtherDigest(summarisedIntl.filter(c => !c.isBreaking),  morningRef);
+      const newLocal      = notInOtherDigest(summarisedLocal.filter(c => !c.isBreaking), morningRef);
+
+      // Breaking first, then new stories; deduplicate in case a breaking story
+      // also appears in the new pool
+      const seen = new Set();
+      const dedup = arr => arr.filter(c => {
+        if (seen.has(c.headline)) return false;
+        seen.add(c.headline);
+        return true;
+      });
+      finalIntl  = dedup([...breakingIntl,  ...newIntl ]).slice(0, counts.intl);
+      seen.clear();
+      finalLocal = dedup([...breakingLocal, ...newLocal]).slice(0, counts.local);
+
+      if (finalIntl.length === 0 && finalLocal.length === 0) {
+        noUpdate = true;
+        console.log('[digest] Evening: no new stories vs morning — returning noUpdate');
+      } else {
+        if (finalIntl.length === 0 && summarisedIntl.length > 0) {
+          console.warn('[digest] Evening: intl empty after dedup — falling back to top-ranked intl');
+          finalIntl = summarisedIntl.slice(0, counts.intl);
+        }
+        if (finalLocal.length === 0) {
+          if (summarisedLocal.length > 0) {
+            console.warn('[digest] Evening: local empty after dedup — falling back to top-ranked local');
+            finalLocal = summarisedLocal.slice(0, counts.local);
+          } else if (finalIntl.length > 0) {
+            localNoUpdate = true;
+            console.log('[digest] Evening: no new local stories vs morning');
           }
         }
-      } else {
-        // Evening ran first: show top-ranked stories normally
-        console.log('[digest] Evening ran first (no morning cache) — showing top-ranked stories');
-        finalIntl  = summarisedIntl.slice(0, counts.intl);
-        finalLocal = summarisedLocal.slice(0, counts.local);
       }
 
     } else {
-      // ── Morning: skip stories already shown in evening, go deeper if needed ─
-      const eveningDigest = await redisGet('digest:evening').catch(() => null);
-
-      if (eveningDigest?.generatedAt) {
-        const eveningStories = [
-          ...(eveningDigest.international ?? []),
-          ...(eveningDigest.local         ?? []),
-        ];
-
-        // Go as deep as needed through the ranked list to find non-evening stories
-        finalIntl  = notInOtherDigest(summarisedIntl,  eveningStories).slice(0, counts.intl);
-        finalLocal = notInOtherDigest(summarisedLocal, eveningStories).slice(0, counts.local);
-
-        // Per-section safety net: if cross-edition dedup wiped a section,
-        // fall back to top-ranked for that section individually.
-        // (Morning is never blank — we go deeper in the ranked list rather
-        // than showing nothing.)
-        if (finalIntl.length === 0 && summarisedIntl.length > 0) {
-          console.warn('[digest] Morning: intl empty after dedup — falling back to top-ranked intl');
-          finalIntl = summarisedIntl.slice(0, counts.intl);
-        }
-        if (finalLocal.length === 0 && summarisedLocal.length > 0) {
-          console.warn('[digest] Morning: local empty after dedup — falling back to top-ranked local');
-          finalLocal = summarisedLocal.slice(0, counts.local);
-        }
-        console.log(`[digest] Morning after evening: ${finalIntl.length} intl, ${finalLocal.length} local (skipped ${eveningStories.length} evening stories)`);
-      } else {
-        // Morning ran first: show top-ranked stories normally
-        console.log('[digest] Morning ran first (no evening cache) — showing top-ranked stories');
-        finalIntl  = summarisedIntl.slice(0, counts.intl);
-        finalLocal = summarisedLocal.slice(0, counts.local);
-      }
+      // ── Morning: always show top-ranked stories — never dedup against evening.
+      //
+      // Morning is the primary edition. It always shows the most important
+      // stories of the day regardless of what evening previously ran.
+      // Dedup is one-directional: evening deduplicates against morning, not
+      // the other way around. This prevents the circular-dedup bug where a
+      // story shown in evening gets permanently excluded from morning on reset.
+      finalIntl  = summarisedIntl.slice(0, counts.intl);
+      finalLocal = summarisedLocal.slice(0, counts.local);
+      console.log(`[digest] Morning: ${finalIntl.length} intl, ${finalLocal.length} local`);
     }
 
     // ── 7. Build response ───────────────────────────────────────────────────
