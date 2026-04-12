@@ -15,6 +15,8 @@
 // Vercel config: maxDuration 120 s (Pro plan).
 
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
+import { Readability } from '@mozilla/readability';
+import { parseHTML }   from 'linkedom';
 
 /** Decode common HTML entities so raw &amp;, &#39; etc. never reach the UI. */
 function decodeEntities(text) {
@@ -91,18 +93,35 @@ function pickLearnMoreUrl(c) {
 }
 
 /**
- * Extract readable plain text from raw HTML.
- * Strips scripts, styles, and navigation blocks; joins <p> tag content.
- * Returns up to `maxChars` characters so the LLM prompt stays concise.
+ * Extract readable plain text from raw HTML using Mozilla Readability
+ * (the same engine that powers Firefox Reader Mode).
+ *
+ * Readability identifies the main article body and strips nav, ads,
+ * sidebars, and related-article teasers — far more reliably than regex.
+ *
+ * Falls back to <p>-tag extraction when Readability decides the page
+ * isn't article-like (e.g. homepages, search results).
+ *
+ * @param {string} html     - Raw HTML from the article page
+ * @param {string} url      - Canonical URL (used as baseURI for Readability)
+ * @param {number} maxChars - Max characters to return (default 1500)
  */
-function extractTextFromHtml(html, maxChars = 1500) {
-  // Remove non-content blocks entirely
+function extractTextFromHtml(html, url = '', maxChars = 1500) {
+  // ── Primary: Readability ────────────────────────────────────────────────────
+  try {
+    const { document } = parseHTML(html);
+    const reader  = new Readability(document);
+    const article = reader.parse();
+    if (article?.textContent) {
+      return article.textContent.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+    }
+  } catch { /* Readability failed — fall through */ }
+
+  // ── Fallback: <p>-tag extraction ────────────────────────────────────────────
+  // Used when Readability decides the page has no article body (e.g. a homepage).
   const cleaned = html.replace(
     /<(script|style|noscript|nav|header|footer|aside|figure|figcaption|menu)[^>]*>[\s\S]*?<\/\1>/gi, ' '
   );
-
-  // Prefer <p> tag content — article text lives in paragraphs; nav/menu items rarely do.
-  // This prevents the first 900 chars being consumed by navigation links.
   const pRe = /<p[^>]*>([\s\S]*?)<\/p>/gi;
   const paragraphs = [];
   let pm;
@@ -113,14 +132,11 @@ function extractTextFromHtml(html, maxChars = 1500) {
       .replace(/&#\d+;/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    if (text.length > 40) paragraphs.push(text); // skip nav links, short UI labels
+    if (text.length > 40) paragraphs.push(text);
   }
+  if (paragraphs.length > 0) return paragraphs.join(' ').slice(0, maxChars);
 
-  if (paragraphs.length > 0) {
-    return paragraphs.join(' ').slice(0, maxChars);
-  }
-
-  // Fallback: strip all tags and take first maxChars
+  // Last resort: strip all tags
   return cleaned
     .replace(/<[^>]+>/g, ' ')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
@@ -168,7 +184,7 @@ async function fetchArticleExcerpt(url) {
     });
     if (!res.ok) return null;
     const html = await res.text();
-    const text = extractTextFromHtml(html);
+    const text = extractTextFromHtml(html, url); // pass URL so Readability can set baseURI
     return text.length > 80 ? text : null; // discard near-empty pages
   } catch {
     return null; // timeout, network error, CORS — silently skip
@@ -176,8 +192,35 @@ async function fetchArticleExcerpt(url) {
 }
 
 /**
+ * Search The Guardian Open Platform for an article matching the cluster headline.
+ * Returns plain-text article body (up to 1500 chars) or null.
+ *
+ * Requires GUARDIAN_API_KEY env var (free registration at open-platform.theguardian.com).
+ * Silently skips if the key is absent — Guardian is a fallback, not required.
+ */
+async function searchGuardianForExcerpt(headline) {
+  const key = process.env.GUARDIAN_API_KEY;
+  if (!key) return null;
+  try {
+    const q   = encodeURIComponent(headline.replace(/['"]/g, '').slice(0, 120));
+    const url = `https://content.guardianapis.com/search?q=${q}&show-fields=bodyText&page-size=1&api-key=${key}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const body = data.response?.results?.[0]?.fields?.bodyText;
+    if (!body) return null;
+    return body.replace(/\s+/g, ' ').trim().slice(0, 1500);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Enrich each cluster with an `articleExcerpt` by fetching member article URLs
  * in priority order until one returns usable content.
+ *
+ * If every URL fails or returns off-topic content, falls back to searching
+ * The Guardian API by headline (requires GUARDIAN_API_KEY env var).
  *
  * _learnMoreUrl is always set to the top-ranked URL (regardless of fetch
  * outcome) so the "Learn more" link is stable.  articleExcerpt may come from
@@ -190,11 +233,22 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
       const urls = rankLearnMoreUrls(c);
       if (!urls.length) return;
       c._learnMoreUrl = urls[0]; // best URL for the "Learn more" link
+
+      // Try each free member URL in priority order
       for (const url of urls) {
         const excerpt = await fetchArticleExcerpt(url);
         if (excerpt && excerptIsRelevant(c.headline, excerpt)) {
           c.articleExcerpt = excerpt;
           break; // got real, on-topic content — stop trying
+        }
+      }
+
+      // Guardian API fallback — used when every URL times out, bot-blocks,
+      // or returns off-topic content (e.g. a markets article for a Hormuz story)
+      if (!c.articleExcerpt) {
+        const guardianExcerpt = await searchGuardianForExcerpt(c.headline);
+        if (guardianExcerpt && excerptIsRelevant(c.headline, guardianExcerpt)) {
+          c.articleExcerpt = guardianExcerpt;
         }
       }
     }));
