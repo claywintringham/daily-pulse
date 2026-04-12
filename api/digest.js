@@ -14,7 +14,7 @@
 // On error: return stale cached digest (if any) rather than a 500.
 // Vercel config: maxDuration 120 s (Pro plan).
 
-import { get as redisGet, set as redisSet } from '../lib/redis.js';
+import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
 import { editorialFilter, summarizeClusters } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
@@ -168,6 +168,19 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // ── 0. Cache reset (dev/debug) ─────────────────────────────────────────────
+  const reqUrl = new URL(req.url, `https://${req.headers.host}`);
+  if (reqUrl.searchParams.get('reset') === 'true') {
+    await Promise.all([
+      redisDel('digest:morning').catch(() => {}),
+      redisDel('digest:evening').catch(() => {}),
+      redisDel('scraped:morning').catch(() => {}),
+      redisDel('scraped:evening').catch(() => {}),
+    ]);
+    console.log('[digest] Cache reset via ?reset=true');
+    return res.status(200).json({ ok: true, message: 'Cache cleared. Next request will run as morning edition.' });
+  }
 
   const type = detectType(req);
   const t0   = Date.now();
