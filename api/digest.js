@@ -108,33 +108,6 @@ function extractTextFromHtml(html, maxChars = 900) {
  * Returns plain-text excerpt or null on any failure (timeout, bot-block, etc.).
  * Used to give the LLM real article content to summarise rather than just titles.
  */
-/**
- * Return true if the extracted text looks like a paywall or donation/subscribe
- * page rather than a real news article.
- *
- * Heuristics:
- *   1. High density of paywall keywords in the first 800 chars (the part that
- *      matters for LLM summarisation).
- *   2. Very short text that mentions subscription/membership — probably a gate.
- */
-function looksLikePaywall(text) {
-  const sample = text.slice(0, 800).toLowerCase();
-  const SIGNALS = [
-    'subscribe', 'subscription', 'membership', 'donate', 'donation',
-    'support our journalism', 'support hkfp', 'support us',
-    'monthly', 'annually', 'hk$', 'us$', '$/month', '$/year',
-    'sign in to read', 'log in to read', 'register to read',
-    'premium content', 'paywall', 'free article',
-    'create an account', 'already a subscriber',
-  ];
-  const hits = SIGNALS.filter(s => sample.includes(s)).length;
-  // 3+ signals in the first 800 chars → treat as paywall
-  if (hits >= 3) return true;
-  // Short text (< 300 chars after trimming) that still mentions subscribe/donate
-  if (text.length < 300 && (sample.includes('subscribe') || sample.includes('donate'))) return true;
-  return false;
-}
-
 async function fetchArticleExcerpt(url) {
   if (!url) return null;
   try {
@@ -148,9 +121,7 @@ async function fetchArticleExcerpt(url) {
     if (!res.ok) return null;
     const html = await res.text();
     const text = extractTextFromHtml(html);
-    if (text.length <= 80) return null;  // near-empty page
-    if (looksLikePaywall(text)) return null; // subscription/donation gate
-    return text;
+    return text.length > 80 ? text : null; // discard near-empty pages
   } catch {
     return null; // timeout, network error, CORS — silently skip
   }
