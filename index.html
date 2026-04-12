@@ -425,7 +425,7 @@
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
         ${timeHtml}
-        <p class="story-summary">${c.summary}</p>
+        ${c.summary ? `<p class="story-summary">${c.summary}</p>` : ''}
         <div class="story-chips">${renderChips(c.sources)}</div>
         ${learnMore}
       </article>`;
