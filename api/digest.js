@@ -289,7 +289,8 @@ export default async function handler(req, res) {
     const counts = STORY_COUNTS[type] ?? STORY_COUNTS.morning;
 
     let finalIntl, finalLocal;
-    let noUpdate = false;
+    let noUpdate      = false;
+    let localNoUpdate = false; // evening only: intl has stories but local has none new
     let morningGeneratedAt = null;
 
     if (type === 'evening') {
@@ -310,6 +311,9 @@ export default async function handler(req, res) {
         if (finalIntl.length === 0 && finalLocal.length === 0) {
           noUpdate = true;
           console.log('[digest] Evening: no new stories vs morning — returning noUpdate');
+        } else if (finalLocal.length === 0 && finalIntl.length > 0) {
+          localNoUpdate = true;
+          console.log('[digest] Evening: no new local stories vs morning');
         }
       } else {
         // Evening ran first: show top-ranked stories normally
@@ -380,6 +384,7 @@ export default async function handler(req, res) {
       scrapedAt:     scraped.scrapedAt,
       international: formatStories(finalIntl),
       local:         formatStories(finalLocal),
+      localNoUpdate,
       meta,
     };
 
