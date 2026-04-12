@@ -50,7 +50,7 @@ const SCRAPED_TTL = 60 * 60;     // 1 hour (mirrors api/scrape.js)
 // "Never blank on first run" — slice after filtering, not before, so
 // we always show up to N stories even if fewer pass the editorial filter.
 const STORY_COUNTS = {
-  morning: { intl: 3, local: 2 },
+  morning: { intl: 5, local: 3 },
   evening: { intl: 3, local: 2 },
 };
 
