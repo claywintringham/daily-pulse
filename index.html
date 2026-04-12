@@ -443,6 +443,7 @@
   let translationCache   = null;   // { [clusterId]: { headline, summary } }
   let currentGeneratedAt = null;
   let speakingId         = null;   // cluster id currently being read aloud, or null
+  let cachedVoices       = [];     // populated on boot via voiceschanged
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -796,20 +797,26 @@
   }
 
   // ── Text-to-speech ─────────────────────────────────────────────────
-  // Selects the best available voice for the current language.
-  // iOS/macOS expose high-quality Siri voices via getVoices() —
-  // zh-HK is preferred for Hong Kong news.
+  // iOS Safari returns an empty array from getVoices() until the
+  // voiceschanged event fires — so we cache voices eagerly on boot.
+  function preloadVoices() {
+    if (!window.speechSynthesis) return;
+    const load = () => { cachedVoices = window.speechSynthesis.getVoices(); };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  }
+
+  // Prefer Mandarin voices (zh-CN, zh-TW) over Cantonese (zh-HK) for Chinese.
   function pickVoice(lang) {
     if (!window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    const prefs  = lang === 'zh'
-      ? ['zh-HK', 'zh-TW', 'zh']
+    const prefs = lang === 'zh'
+      ? ['zh-CN', 'zh-TW', 'zh-HK', 'zh']
       : ['en-US', 'en-GB', 'en-AU', 'en'];
     for (const p of prefs) {
-      const v = voices.find(v => v.lang.startsWith(p));
+      const v = cachedVoices.find(v => v.lang.startsWith(p));
       if (v) return v;
     }
-    return null; // browser picks its default
+    return null;
   }
 
   function stopSpeaking() {
@@ -824,14 +831,15 @@
 
   function speakStory(btn) {
     if (!window.speechSynthesis) return;
-    const id   = btn.dataset.id;
-    const text = btn.dataset.text;
+    const id          = btn.dataset.id;
+    const text        = btn.dataset.text;
+    const wasPlaying  = (speakingId === id); // capture BEFORE stopSpeaking resets it
 
-    // Cancel whatever is playing
+    // Cancel whatever is currently playing
     stopSpeaking();
 
-    // If the same story was tapped, just stop (toggle off)
-    if (speakingId === id || !id) return;
+    // Same story tapped again → just stop (toggle off)
+    if (wasPlaying || !id) return;
 
     // Start the new utterance
     speakingId = id;
@@ -841,7 +849,7 @@
     const utt = new SpeechSynthesisUtterance(text);
     const v   = pickVoice(currentLang);
     if (v) utt.voice = v;
-    utt.lang  = currentLang === 'zh' ? 'zh-HK' : 'en-US';
+    utt.lang  = currentLang === 'zh' ? 'zh-CN' : 'en-US';
     utt.rate  = 0.95;
     utt.pitch = 1;
 
@@ -933,6 +941,8 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────
+  preloadVoices(); // eagerly cache TTS voices so they're ready when first used
+
   // Restore language preference before first render so the UI buttons
   // and all t() calls reflect the correct language immediately.
   (function restoreLang() {
