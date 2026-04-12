@@ -106,6 +106,30 @@ function pickLearnMoreUrl(c) {
  * @param {string} url      - Canonical URL (used as baseURI for Readability)
  * @param {number} maxChars - Max characters to return (default 1500)
  */
+/**
+ * Strip boilerplate patterns that survive Readability but pollute LLM input:
+ *   • AP wire timestamp templates: [hour], [minute], [AMPM], etc.
+ *   • "Updated HH:MM …" prefix lines that AP wires embed in hosted articles
+ *   • Video chip text from CNN/NBC: "3:45 • Source: CNN"
+ *   • Repeated "Exclusive:" video-embed labels from CNN player
+ */
+function sanitiseExtract(text) {
+  return text
+    // AP wire template placeholders like [hour], [monthFull], [timezone], etc.
+    .replace(/\[[a-zA-Z][a-zA-Z]*\]/g, '')
+    // "Updated …" line ending at AP dateline em-dash: "Updated … JERUSALEM (AP) — "
+    .replace(/^Updated\b[^—\n]*[—–]\s*/im, '')
+    // Bare AP dateline at paragraph start: "JERUSALEM (AP) — "
+    .replace(/^[A-Z][A-Z ,]+\([A-Z]+\)\s*[—–]\s*/m, '')
+    // Video duration chip: "3:45 • Source: CNN" or "3:45 · Source: ..."
+    .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
+    // Repeated "Exclusive:" video-embed labels left by CNN player
+    .replace(/(Exclusive:[^\n]{0,120}\n?){2,}/g, '$1')
+    // Collapse any resulting runs of whitespace
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function extractTextFromHtml(html, url = '', maxChars = 1500) {
   // ── Primary: Readability ────────────────────────────────────────────────────
   try {
@@ -113,7 +137,7 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
     const reader  = new Readability(document);
     const article = reader.parse();
     if (article?.textContent) {
-      return article.textContent.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+      return sanitiseExtract(article.textContent.replace(/\s+/g, ' ').trim()).slice(0, maxChars);
     }
   } catch { /* Readability failed — fall through */ }
 
@@ -134,16 +158,17 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
       .trim();
     if (text.length > 40) paragraphs.push(text);
   }
-  if (paragraphs.length > 0) return paragraphs.join(' ').slice(0, maxChars);
+  if (paragraphs.length > 0) return sanitiseExtract(paragraphs.join(' ')).slice(0, maxChars);
 
   // Last resort: strip all tags
-  return cleaned
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/&#\d+;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxChars);
+  return sanitiseExtract(
+    cleaned
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+      .replace(/&#\d+;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ).slice(0, maxChars);
 }
 
 /**
