@@ -42,18 +42,16 @@ import { getById }        from '../lib/sourceRegistry.js';
 
 export const config = { maxDuration: 120 };
 
-// Cache TTL: digest and scrape data both cached for 1 hour so breaking
-// stories appear within one refresh cycle.
-const DIGEST_TTL  = 60 * 60; // 1 hour
-const SCRAPED_TTL = 60 * 60; // 1 hour (mirrors api/scrape.js)
+// Cache TTL: 20 minutes for both digest and scrape data.
+// Breaking news surfaces within one 20-minute refresh cycle.
+const DIGEST_TTL  = 20 * 60; // 20 minutes
+const SCRAPED_TTL = 20 * 60; // 20 minutes
 
-// How many stories to surface per section per edition.
-// "Never blank on first run" — slice after filtering, not before, so
-// we always show up to N stories even if fewer pass the editorial filter.
-const STORY_COUNTS = {
-  morning: { intl: 5, local: 3 },
-  evening: { intl: 3, local: 2 },
-};
+// Rolling digest: always show the top N stories within the staleness window.
+const STORY_COUNTS = { intl: 5, local: 3 };
+
+// Stories older than this are aged out of the digest.
+const STALE_WINDOW_MS = 36 * 60 * 60 * 1000; // 36 hours
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -176,8 +174,6 @@ function computeIsBreaking(members) {
 }
 
 /**
- * Headline-based fuzzy deduplication between editions.
- *
  * Tokenise a headline into a set of meaningful words (length > 2, lowercased).
  * Returns Jaccard similarity in [0, 1].
  */
@@ -219,53 +215,20 @@ function deduplicateByHeadline(clusters, threshold = 0.5) {
   return kept;
 }
 
-/**
- * Filter `clusters` to those not already covered in the other edition's digest.
- *
- * Two signals are checked in OR:
- *   1. Headline token overlap ≥ 0.25 (lowered from 0.4 because the LLM can
- *      rephrase the same story very differently across editions).
- *   2. Source-label overlap ≥ 2 shared outlets — if the same news organisations
- *      appear in both the current cluster and a digest story, they are almost
- *      certainly reporting the same underlying event regardless of headline wording.
- */
-function notInOtherDigest(clusters, digestStories) {
-  if (!digestStories?.length) return clusters;
-  return clusters.filter(c => {
-    return !digestStories.some(ds => {
-      // Signal 1: headline similarity
-      if (headlineOverlap(c.headline, ds.headline) >= 0.25) return true;
-      // Signal 2: 2+ shared outlet names
-      const cLabels = new Set((c.members ?? []).map(m => (m.label ?? '').toLowerCase()));
-      const dLabels = new Set((ds.sources ?? []).map(s => (s.name ?? '').toLowerCase()));
-      let shared = 0;
-      for (const l of cLabels) if (l && dLabels.has(l)) shared++;
-      return shared >= 2;
-    });
-  });
-}
-
-function detectType(req) {
-  const url   = new URL(req.url, `https://${req.headers.host}`);
-  const param = url.searchParams.get('type');
-  if (param === 'morning' || param === 'evening') return param;
-  const hktHour = (new Date().getUTCHours() + 8) % 24;
-  return hktHour < 13 ? 'morning' : 'evening';
-}
 
 /**
  * Inline scrape fallback: runs the full adapter → enrich → cluster → score
  * pipeline when no pre-warmed `scraped:{type}` data exists in Redis.
  * Result is also written to Redis so subsequent requests benefit from it.
  */
-async function runInlineScrape(type) {
+async function runInlineScrape() {
   console.log('[digest] Running inline scrape (no pre-warmed data)');
 
   const adapterResults = await runAllAdapters();
 
   const enriched = await Promise.all(
     adapterResults.map(async src => {
-      const def          = getById(src.sourceId);
+      const def           = getById(src.sourceId);
       const enrichedItems = await enrichWithRss(src.items ?? [], def?.rssUrl ?? null);
       return { ...src, items: enrichedItems };
     })
@@ -276,7 +239,6 @@ async function runInlineScrape(type) {
   const localScored = scoreClusters(clusters, 'local');
 
   const payload = {
-    type,
     scrapedAt:     new Date().toISOString(),
     international: intlScored,
     local:         localScored,
@@ -289,7 +251,7 @@ async function runInlineScrape(type) {
   };
 
   // Cache so the next request skips the scrape
-  await redisSet(`scraped:${type}`, payload, SCRAPED_TTL).catch(() => {});
+  await redisSet('scraped:rolling', payload, SCRAPED_TTL).catch(() => {});
   return payload;
 }
 
@@ -347,22 +309,19 @@ export default async function handler(req, res) {
   const reqUrl = new URL(req.url, `https://${req.headers.host}`);
   if (reqUrl.searchParams.get('reset') === 'true') {
     await Promise.all([
-      redisDel('digest:morning').catch(() => {}),
-      redisDel('digest:evening').catch(() => {}),
-      redisDel('scraped:morning').catch(() => {}),
-      redisDel('scraped:evening').catch(() => {}),
+      redisDel('digest:rolling').catch(() => {}),
+      redisDel('scraped:rolling').catch(() => {}),
     ]);
     console.log('[digest] Cache reset via ?reset=true');
-    return res.status(200).json({ ok: true, message: 'Cache cleared. Next request will run as morning edition.' });
+    return res.status(200).json({ ok: true, message: 'Cache cleared. Next request will regenerate the digest.' });
   }
 
-  const type = detectType(req);
-  const t0   = Date.now();
-  console.log(`[digest] Request for type=${type}`);
+  const t0 = Date.now();
+  console.log('[digest] Request for rolling digest');
 
   try {
     // ── 1. Digest cache hit ─────────────────────────────────────────────────
-    const cached = await redisGet(`digest:${type}`);
+    const cached = await redisGet('digest:rolling');
     if (cached?.generatedAt) {
       const ageSeconds = (Date.now() - new Date(cached.generatedAt).getTime()) / 1000;
       if (ageSeconds < DIGEST_TTL) {
@@ -375,11 +334,11 @@ export default async function handler(req, res) {
     res.setHeader('X-Cache', 'MISS');
 
     // ── 2. Get pre-scraped cluster data ─────────────────────────────────────
-    let scraped = await redisGet(`scraped:${type}`);
+    let scraped = await redisGet('scraped:rolling');
 
     // ── 3. Inline scrape if no pre-warmed data ──────────────────────────────
     if (!scraped) {
-      scraped = await runInlineScrape(type);
+      scraped = await runInlineScrape();
     }
 
     const allClusters = [
@@ -393,10 +352,9 @@ export default async function handler(req, res) {
     const editFiltered = await editorialFilter(allClusters);
 
     // ── 4b. Staleness filter ─────────────────────────────────────────────────
-    // Discard any cluster whose most recent member was published more than
-    // 48 hours ago. RSS feeds can surface old entries; a 5-day-old article
-    // should never appear in today's digest.
-    const STALE_CUTOFF_MS = 48 * 60 * 60 * 1000; // 48 hours
+    // Discard any cluster whose most recent member was published outside the
+    // 36-hour rolling window. RSS feeds can surface old entries; anything
+    // older than the window should never appear in the digest.
     const nowMs = Date.now();
     const filtered = editFiltered.filter(c => {
       const withDates = (c.members ?? []).filter(
@@ -406,7 +364,7 @@ export default async function handler(req, res) {
       const newestMs = Math.max(
         ...withDates.map(m => new Date(m.publishedAt).getTime())
       );
-      return (nowMs - newestMs) <= STALE_CUTOFF_MS;
+      return (nowMs - newestMs) <= STALE_WINDOW_MS;
     });
     console.log(`[digest] ${filtered.length} cluster(s) after editorial + staleness filter (${editFiltered.length - filtered.length} stale removed)`);
 
@@ -429,7 +387,7 @@ export default async function handler(req, res) {
           m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime())
         );
         if (!withDates.length) return true;
-        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_CUTOFF_MS;
+        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_WINDOW_MS;
       });
     }
     if (filteredLocal.length === 0 && (scraped.local ?? []).length > 0) {
@@ -439,7 +397,7 @@ export default async function handler(req, res) {
           m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime())
         );
         if (!withDates.length) return true;
-        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_CUTOFF_MS;
+        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_WINDOW_MS;
       });
     }
 
@@ -474,105 +432,13 @@ export default async function handler(req, res) {
     const summarisedLocal = byScore(deduplicateByHeadline(noQuestions(await summarizeClusters(filteredLocal))));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
-    // ── 6. Morning / evening differentiation ───────────────────────────────
-    //
-    // The two editions share the same underlying scraped data but serve
-    // different stories depending on which ran first:
-    //
-    //   Evening after Morning:
-    //     Show only stories NOT already in the morning digest, ranked by
-    //     importance (scorer order is preserved). If nothing new → noUpdate.
-    //
-    //   Morning after Evening:
-    //     Evening took the top stories; morning goes deeper in the ranked list
-    //     and shows stories not yet covered. Never returns noUpdate — morning
-    //     always has something to say even if the top headlines were in evening.
-    //
-    //   Either runs first (no other-edition cache):
-    //     Show top-ranked stories normally.
-
-    const counts = STORY_COUNTS[type] ?? STORY_COUNTS.morning;
-
-    let finalIntl, finalLocal;
-    let noUpdate      = false;
-    let localNoUpdate = false; // evening only: intl has stories but local has none new
-    let morningGeneratedAt = null;
-
-    if (type === 'evening') {
-      // ── Evening: stories not in morning's top set, plus breaking news ───────
-      //
-      // The dedup is computed deterministically from the current ranked pool —
-      // we don't rely on the morning Redis cache being present. This eliminates
-      // the race condition where both editions are reset at the same time and
-      // evening has no morning cache to compare against.
-      //
-      // Breaking stories (isBreaking=true, majority published in last 4h) always
-      // appear in evening even if they also rank in morning's top set, so that
-      // major events that broke during the day are always surfaced.
-
-      // What morning "would" show — top N from the same ranked pool
-      const mCounts = STORY_COUNTS.morning;
-      const morningRef = [
-        ...summarisedIntl.slice(0, mCounts.intl),
-        ...summarisedLocal.slice(0, mCounts.local),
-      ].map(c => ({
-        headline: c.headline,
-        sources:  (c.members ?? []).map(m => ({ name: m.label ?? '' })),
-      }));
-
-      // Fetch morningGeneratedAt for display only — non-fatal if missing
-      const morningCache = await redisGet('digest:morning').catch(() => null);
-      if (morningCache?.generatedAt) morningGeneratedAt = morningCache.generatedAt;
-
-      // Breaking stories bypass dedup; non-breaking stories are filtered
-      const breakingIntl  = summarisedIntl.filter(c => c.isBreaking);
-      const breakingLocal = summarisedLocal.filter(c => c.isBreaking);
-      const newIntl       = notInOtherDigest(summarisedIntl.filter(c => !c.isBreaking),  morningRef);
-      const newLocal      = notInOtherDigest(summarisedLocal.filter(c => !c.isBreaking), morningRef);
-
-      // Breaking first, then new stories; deduplicate in case a breaking story
-      // also appears in the new pool
-      const seen = new Set();
-      const dedup = arr => arr.filter(c => {
-        if (seen.has(c.headline)) return false;
-        seen.add(c.headline);
-        return true;
-      });
-      finalIntl  = dedup([...breakingIntl,  ...newIntl ]).slice(0, counts.intl);
-      seen.clear();
-      finalLocal = dedup([...breakingLocal, ...newLocal]).slice(0, counts.local);
-
-      if (finalIntl.length === 0 && finalLocal.length === 0) {
-        noUpdate = true;
-        console.log('[digest] Evening: no new stories vs morning — returning noUpdate');
-      } else {
-        if (finalIntl.length === 0 && summarisedIntl.length > 0) {
-          console.warn('[digest] Evening: intl empty after dedup — falling back to top-ranked intl');
-          finalIntl = summarisedIntl.slice(0, counts.intl);
-        }
-        if (finalLocal.length === 0) {
-          if (summarisedLocal.length > 0) {
-            console.warn('[digest] Evening: local empty after dedup — falling back to top-ranked local');
-            finalLocal = summarisedLocal.slice(0, counts.local);
-          } else if (finalIntl.length > 0) {
-            localNoUpdate = true;
-            console.log('[digest] Evening: no new local stories vs morning');
-          }
-        }
-      }
-
-    } else {
-      // ── Morning: always show top-ranked stories — never dedup against evening.
-      //
-      // Morning is the primary edition. It always shows the most important
-      // stories of the day regardless of what evening previously ran.
-      // Dedup is one-directional: evening deduplicates against morning, not
-      // the other way around. This prevents the circular-dedup bug where a
-      // story shown in evening gets permanently excluded from morning on reset.
-      finalIntl  = summarisedIntl.slice(0, counts.intl);
-      finalLocal = summarisedLocal.slice(0, counts.local);
-      console.log(`[digest] Morning: ${finalIntl.length} intl, ${finalLocal.length} local`);
-    }
+    // ── 6. Rolling top-N selection ──────────────────────────────────────────
+    // Always return the highest-scored stories within the 36-hour window.
+    // No morning/evening split — the frontend tracks which stories are new
+    // via localStorage and shows a "New" badge on first view.
+    const finalIntl  = summarisedIntl.slice(0, STORY_COUNTS.intl);
+    const finalLocal = summarisedLocal.slice(0, STORY_COUNTS.local);
+    console.log(`[digest] Rolling: ${finalIntl.length} intl, ${finalLocal.length} local`);
 
     // ── 7. Build response ───────────────────────────────────────────────────
     const meta = {
@@ -582,35 +448,16 @@ export default async function handler(req, res) {
       elapsedMs:          Date.now() - t0,
     };
 
-    if (noUpdate) {
-      const response = {
-        type,
-        generatedAt:        new Date().toISOString(),
-        scrapedAt:          scraped.scrapedAt,
-        noUpdate:           true,
-        morningGeneratedAt,
-        international:      [],
-        local:              [],
-        meta,
-      };
-      await redisSet(`digest:${type}`, response, DIGEST_TTL).catch(e =>
-        console.warn('[digest] Redis write failed (non-fatal):', e.message)
-      );
-      return res.status(200).json(response);
-    }
-
     const response = {
-      type,
       generatedAt:   new Date().toISOString(),
       scrapedAt:     scraped.scrapedAt,
       international: formatStories(finalIntl),
       local:         formatStories(finalLocal),
-      localNoUpdate,
       meta,
     };
 
     // ── 8. Cache and return ─────────────────────────────────────────────────
-    await redisSet(`digest:${type}`, response, DIGEST_TTL).catch(e =>
+    await redisSet('digest:rolling', response, DIGEST_TTL).catch(e =>
       console.warn('[digest] Redis write failed (non-fatal):', e.message)
     );
 
@@ -620,7 +467,7 @@ export default async function handler(req, res) {
     console.error('[digest] Fatal error:', err);
 
     // Serve stale cache rather than a hard error when possible
-    const stale = await redisGet(`digest:${type}`).catch(() => null);
+    const stale = await redisGet('digest:rolling').catch(() => null);
     if (stale) {
       console.warn('[digest] Returning stale cache after error');
       res.setHeader('X-Cache', 'STALE');
