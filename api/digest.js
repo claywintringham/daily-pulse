@@ -80,6 +80,27 @@ function headlineOverlap(h1, h2) {
 }
 
 /**
+ * Remove duplicate clusters within a single bucket after summarisation.
+ * Two clusters are duplicates when their synthesised headlines share ≥ 50 %
+ * of tokens (Jaccard). Keeps whichever has more source members.
+ * This catches cases where greedy single-link clustering splits a large story
+ * into two clusters that only merge in the synthesised headline.
+ */
+function deduplicateByHeadline(clusters, threshold = 0.5) {
+  const kept = [];
+  for (const c of clusters) {
+    const dupIdx = kept.findIndex(k => headlineOverlap(c.headline, k.headline) >= threshold);
+    if (dupIdx === -1) {
+      kept.push(c);
+    } else {
+      // Keep whichever cluster has more members (better source coverage)
+      if (c.members.length > kept[dupIdx].members.length) kept[dupIdx] = c;
+    }
+  }
+  return kept;
+}
+
+/**
  * Filter `clusters` (raw scored/summarised, with `.headline`) to those whose
  * headline does NOT overlap ≥ 40 % with any story in `digestStories`
  * (formatted stories, also with `.headline`).
@@ -242,8 +263,10 @@ export default async function handler(req, res) {
     const filteredLocal = filtered.filter(c => c.bucket === 'local');
 
     // ── 5. Summarization (sequential to avoid Gemini rate-limit collisions) ───
-    const summarisedIntl  = await summarizeClusters(filteredIntl);
-    const summarisedLocal = await summarizeClusters(filteredLocal);
+    // After summarisation, deduplicate within each bucket: greedy clustering
+    // can split a large story into two clusters that share a synthesised headline.
+    const summarisedIntl  = deduplicateByHeadline(await summarizeClusters(filteredIntl));
+    const summarisedLocal = deduplicateByHeadline(await summarizeClusters(filteredLocal));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
     // ── 6. Morning / evening differentiation ───────────────────────────────
