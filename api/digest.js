@@ -117,10 +117,16 @@ function sanitiseExtract(text) {
   return text
     // AP wire template placeholders like [hour], [monthFull], [timezone], etc.
     .replace(/\[[a-zA-Z][a-zA-Z]*\]/g, '')
-    // "Updated …" line ending at AP dateline em-dash: "Updated … JERUSALEM (AP) — "
-    .replace(/^Updated\b[^—\n]*[—–]\s*/im, '')
+    // "Updated …" AP/CBS CMS timestamp line — nuke the entire line unconditionally.
+    // The previous pattern required an em-dash on the same line, which failed when
+    // AP puts the dateline on a separate line, leaving "Updated : , ," behind.
+    .replace(/^Updated\b[^\n]*/im, '')
+    // Orphaned punctuation artifacts left after template-variable stripping,
+    // e.g. ": , , " at the start of what is now the first content line.
+    .replace(/^[\s:,;]+/m, '')
     // Bare AP dateline at paragraph start: "JERUSALEM (AP) — " or "BUDAPEST, Hungary (AP) — "
-    .replace(/^[A-Z][A-Za-z ,]+\([A-Z]+\)\s*[—–]\s*/m, '')
+    // Also accepts a plain hyphen in case the em-dash didn't survive encoding.
+    .replace(/^[A-Z][A-Za-z ,]+\([A-Z]+\)\s*[—–\-]\s*/m, '')
     // Video duration chip: "3:45 • Source: CNN" or "3:45 · Source: ..."
     .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
     // Repeated "Exclusive:" video-embed labels left by CNN player
@@ -195,11 +201,11 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
  * to be considered on-topic.  Prevents a financial sidebar or related-article
  * teaser from being accepted as the summary source for a different story.
  *
- * Requires ≥ 25 % of meaningful headline tokens (length > 3) to appear in the
- * excerpt, with a floor of 2 matches (not 1).  A floor of 1 was too loose —
- * common words like "after" or "into" could appear in any article and satisfy
- * the check, letting completely off-topic excerpts through (e.g. an Iran article
- * passing for an Artemis headline because "after" appeared in both).
+ * Requires ≥ 30 % of meaningful headline tokens (length > 3) to appear in the
+ * excerpt, with a floor of 3 matches.  A floor of 2 was too loose — short common
+ * words like "trump" + "says" could satisfy the check against a completely
+ * unrelated article (e.g. a 2004 Apprentice TV pilot passing for a Hormuz
+ * blockade story because both contained "trump" and "says").
  */
 function excerptIsRelevant(headline, excerpt) {
   if (!headline || !excerpt) return false;
@@ -211,7 +217,7 @@ function excerptIsRelevant(headline, excerpt) {
   if (!tokens.length) return true; // nothing meaningful to check
   const ex = excerpt.toLowerCase();
   const hits = tokens.filter(t => ex.includes(t)).length;
-  return hits >= Math.max(2, Math.floor(tokens.length * 0.25));
+  return hits >= Math.max(3, Math.floor(tokens.length * 0.30));
 }
 
 /**
