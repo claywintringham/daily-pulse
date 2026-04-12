@@ -443,8 +443,7 @@
   let translationCache   = null;   // { [clusterId]: { headline, summary } }
   let currentGeneratedAt = null;
   let speakingId         = null;   // cluster id currently being read aloud, or null
-  let currentAudio       = null;   // HTMLAudioElement currently playing (Speechify)
-  let cachedVoices       = [];     // Web Speech voices, populated on boot
+  let currentAudio       = null;   // HTMLAudioElement currently playing
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -801,46 +800,9 @@
   }
 
   // ── Text-to-speech ────────────────────────────────────────────────
-  // English  → Speechify API (high-quality AI voice via /api/tts)
-  // Chinese  → browser Web Speech API (user's native Mandarin system voice)
-  //
-  // Preload Web Speech voices on boot so they're available for Chinese TTS.
-  function preloadVoices() {
-    if (!window.speechSynthesis) return;
-    const load = () => { cachedVoices = window.speechSynthesis.getVoices(); };
-    load();
-    window.speechSynthesis.onvoiceschanged = load;
-  }
-
-  function pickZhVoice() {
-    const prefs = ['zh-CN', 'zh-TW', 'zh-HK', 'zh'];
-    for (const p of prefs) {
-      const v = cachedVoices.find(v => v.lang.startsWith(p));
-      if (v) return v;
-    }
-    return null;
-  }
-
-  // Voice IDs for Speechify (English only) are fetched from /api/voices and cached in localStorage
-  // for 24 hours so they're only looked up once.
-  const LS_VOICES_KEY = 'dp_voices';
-  const VOICES_TTL_MS = 24 * 60 * 60 * 1000;
-
-  async function getVoiceId(lang) {
-    try {
-      const cached = JSON.parse(localStorage.getItem(LS_VOICES_KEY) || '{}');
-      if (cached.ts && (Date.now() - cached.ts) < VOICES_TTL_MS && cached[lang]) {
-        return cached[lang];
-      }
-    } catch {}
-    try {
-      const res = await fetch('/api/voices');
-      if (!res.ok) return null;
-      const data = await res.json();
-      localStorage.setItem(LS_VOICES_KEY, JSON.stringify({ ts: Date.now(), en: data.en ?? null, zh: data.zh ?? null }));
-      return data[lang] ?? null;
-    } catch { return null; }
-  }
+  // Both EN and ZH go through /api/tts → Gemini 2.5 Flash TTS.
+  // Gemini auto-detects language, so no voice-ID or routing needed here.
+  // Web Speech API is kept as a last-resort fallback if the API fails.
 
   function stopSpeaking() {
     if (currentAudio) {
@@ -869,51 +831,16 @@
     btn.classList.add('speaking');
     btn.title = 'Stop reading';
 
-    const isZh = currentLang === 'zh';
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
 
-    // ── Chinese: browser Web Speech (user's native Mandarin system voice) ──
-    if (isZh) {
-      if (!window.speechSynthesis) {
-        speakingId = null;
-        btn.classList.remove('speaking');
-        btn.title = 'Read aloud';
-        return;
-      }
-      const utt  = new SpeechSynthesisUtterance(text);
-      const v    = pickZhVoice();
-      if (v) utt.voice = v;
-      utt.lang  = 'zh-CN';
-      utt.rate  = 0.95;
-      const keepAlive = setInterval(() => {
-        if (!window.speechSynthesis.speaking) { clearInterval(keepAlive); return; }
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      }, 10_000);
-      const done = () => {
-        clearInterval(keepAlive);
-        if (speakingId === id) {
-          speakingId = null;
-          btn.classList.remove('speaking');
-          btn.title = 'Read aloud';
-        }
-      };
-      utt.onend = utt.onerror = done;
-      window.speechSynthesis.speak(utt);
-      return;
-    }
-
-    // ── English: Speechify API ──────────────────────────────────────────
     try {
-      const voiceId = await getVoiceId('en');
-      if (speakingId !== id) return; // tapped stop while fetching voice ID
-
       const res = await fetch('/api/tts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, lang: 'en', voiceId }),
+        body:    JSON.stringify({ text, lang }),
       });
       if (!res.ok) throw new Error(`TTS ${res.status}`);
-      if (speakingId !== id) return; // tapped stop while fetching audio
+      if (speakingId !== id) return;
 
       const blob  = await res.blob();
       const url   = URL.createObjectURL(blob);
@@ -934,10 +861,11 @@
       audio.play().catch(cleanup);
 
     } catch (err) {
-      console.warn('[tts] Speechify failed, falling back to Web Speech:', err.message);
+      // Last-resort fallback: browser Web Speech API
+      console.warn('[tts] API failed, falling back to Web Speech:', err.message);
       if (window.speechSynthesis && speakingId === id) {
         const utt  = new SpeechSynthesisUtterance(text);
-        utt.lang   = 'en-US';
+        utt.lang   = lang === 'zh' ? 'zh-CN' : 'en-US';
         utt.rate   = 0.95;
         const done = () => {
           if (speakingId === id) {
@@ -1029,8 +957,6 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────
-  preloadVoices(); // cache Web Speech voices for Chinese TTS
-
   // Restore language preference before first render so the UI buttons
   // and all t() calls reflect the correct language immediately.
   (function restoreLang() {
