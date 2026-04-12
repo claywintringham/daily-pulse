@@ -86,6 +86,64 @@ function pickLearnMoreUrl(c) {
 }
 
 /**
+ * Extract readable plain text from raw HTML.
+ * Strips scripts, styles, and navigation blocks; joins <p> tag content.
+ * Returns up to `maxChars` characters so the LLM prompt stays concise.
+ */
+function extractTextFromHtml(html, maxChars = 900) {
+  return html
+    // Remove non-content blocks entirely
+    .replace(/<(script|style|noscript|nav|header|footer|aside|figure|figcaption)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    // Extract paragraph text (keep a space between tags)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxChars);
+}
+
+/**
+ * Best-effort fetch of the article at `url`.
+ * Returns plain-text excerpt or null on any failure (timeout, bot-block, etc.).
+ * Used to give the LLM real article content to summarise rather than just titles.
+ */
+async function fetchArticleExcerpt(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DailyPulse/1.0; +https://daily-pulse-theta.vercel.app)',
+        'Accept':     'text/html',
+      },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const text = extractTextFromHtml(html);
+    return text.length > 80 ? text : null; // discard near-empty pages
+  } catch {
+    return null; // timeout, network error, CORS — silently skip
+  }
+}
+
+/**
+ * Enrich each cluster with an `articleExcerpt` by fetching its learnMoreUrl.
+ * Runs up to `concurrency` fetches in parallel; attaches excerpt in-place.
+ */
+async function enrichWithArticleContent(clusters, concurrency = 6) {
+  for (let i = 0; i < clusters.length; i += concurrency) {
+    const batch = clusters.slice(i, i + concurrency);
+    await Promise.all(batch.map(async c => {
+      const url = pickLearnMoreUrl(c);
+      if (!url) return;
+      c._learnMoreUrl   = url; // stash for formatStories to reuse
+      c.articleExcerpt  = await fetchArticleExcerpt(url);
+    }));
+  }
+}
+
+/**
  * Return true when more than half of the cluster's members published
  * within the past 4 hours — indicating a breaking story.
  */
@@ -245,9 +303,9 @@ function formatStories(clusters) {
     return {
       id:           c.id,
       headline:     decodeEntities(c.headline),
-      summary:      c.summary ?? decodeEntities(c.headline),
+      summary:      c.summary ?? null, // null → frontend omits paragraph, never repeats headline
       readUrl:      pickStoryUrl(c),
-      learnMoreUrl: pickLearnMoreUrl(c),
+      learnMoreUrl: c._learnMoreUrl ?? pickLearnMoreUrl(c), // reuse pre-fetched URL
       isBreaking:   computeIsBreaking(c.members),
       publishedAt,
       sources:      buildSourceChips(c),
@@ -339,7 +397,15 @@ export default async function handler(req, res) {
     const filteredIntl  = filtered.filter(c => c.bucket === 'international');
     const filteredLocal = filtered.filter(c => c.bucket === 'local');
 
-    // ── 5. Summarization (sequential to avoid Gemini rate-limit collisions) ───
+    // ── 5. Enrich clusters with article content ─────────────────────────────
+    // Fetch the lead article for each cluster in parallel (best-effort: silent
+    // fail on timeout / bot-block). The excerpt is passed to summarizeClusters
+    // so Gemini can write summaries from real article text rather than titles.
+    console.log('[digest] Fetching article excerpts…');
+    await enrichWithArticleContent(filtered);
+    console.log('[digest] Article enrichment done');
+
+    // ── 6. Summarization (sequential to avoid Gemini rate-limit collisions) ───
     // After summarisation, deduplicate within each bucket: greedy clustering
     // can split a large story into two clusters that share a synthesised headline.
     // After dedup, re-sort by baseScore descending so importance order is
