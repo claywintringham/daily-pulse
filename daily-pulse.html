@@ -1,541 +1,402 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Daily Pulse">
-  <title>Daily Pulse</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Pulse — Hong Kong</title>
   <style>
+    /* ── Reset & base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --ink: #1a1a1a;
-      --paper: #f5f0e8;
-      --cream: #ede8dc;
-      --accent: #c8392b;
-      --muted: #7a7060;
-      --rule: #c8bfaa;
-      --morning: #b07010;
-      --evening: #3a5f8a;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--paper);
-      color: var(--ink);
-      font-family: 'DM Sans', sans-serif;
-      min-height: 100vh;
-      padding-bottom: env(safe-area-inset-bottom);
+      --ink:       #111111;
+      --ink-mid:   #444444;
+      --ink-faint: #888888;
+      --rule:      #d0c8b8;
+      --bg:        #f5f1ea;
+      --card-bg:   #faf8f4;
+      --accent:    #b5202a;
+      --chip-bg:   #e8e2d8;
+      --chip-hover:#d0c8b8;
+      --sans:      'Georgia', 'Times New Roman', Times, serif;
+      --ui:        system-ui, -apple-system, sans-serif;
     }
 
-    /* SETUP */
-    #setup-screen {
-      display: none;
-      flex-direction: column;
+    html { font-size: 16px; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Masthead ───────────────────────────────────────────────────── */
+    .masthead {
+      border-bottom: 3px double var(--ink);
+      padding: 1.25rem 0 0.75rem;
+      text-align: center;
+      background: var(--bg);
+    }
+
+    .masthead-eyebrow {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 0.25rem;
+    }
+
+    .masthead-title {
+      font-size: clamp(2.2rem, 6vw, 3.8rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--ink);
+    }
+
+    .masthead-title span { color: var(--accent); }
+
+    .masthead-meta {
+      font-family: var(--ui);
+      font-size: 0.72rem;
+      color: var(--ink-faint);
+      margin-top: 0.5rem;
+      letter-spacing: 0.04em;
+    }
+
+    /* Edition toggle */
+    .edition-bar {
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      margin-top: 0.75rem;
+      padding: 0.4rem 1rem;
+      display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
-      padding: 40px 28px;
+      gap: 0.5rem;
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      color: var(--ink-mid);
     }
-    .setup-logo { font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-    .setup-title { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 700; }
-    .setup-rule { width: 40px; height: 2px; background: var(--accent); margin: 20px auto 32px; }
-    .setup-label { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; align-self: flex-start; width: 100%; }
-    .setup-input { width: 100%; background: var(--cream); border: 1.5px solid var(--rule); border-radius: 10px; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink); outline: none; transition: border-color 0.2s; margin-bottom: 8px; }
-    .setup-input:focus { border-color: var(--accent); }
-    .setup-hint { font-size: 12px; color: var(--muted); margin-bottom: 28px; line-height: 1.6; align-self: flex-start; }
-    .btn-primary { width: 100%; background: var(--ink); color: var(--paper); border: none; border-radius: 10px; padding: 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; -webkit-tap-highlight-color: transparent; margin-top: 8px; }
-    .btn-primary:active { opacity: 0.8; }
 
-    /* MASTHEAD */
-    .masthead { background: var(--ink); color: var(--paper); padding: 20px 24px 18px; padding-top: calc(20px + env(safe-area-inset-top)); position: relative; }
-    .masthead-eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rule); margin-bottom: 4px; }
-    .masthead-title { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 700; }
-    .masthead-title span { color: var(--accent); }
-    .masthead-date { font-size: 11px; color: var(--rule); margin-top: 6px; font-weight: 300; }
-    .settings-btn { position: absolute; top: calc(20px + env(safe-area-inset-top)); right: 20px; background: none; border: none; color: var(--rule); font-size: 20px; cursor: pointer; padding: 4px; -webkit-tap-highlight-color: transparent; }
+    .edition-btn {
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      padding: 0.2rem 0.6rem;
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      color: var(--ink-faint);
+      transition: all 0.15s;
+    }
 
-    /* TRIGGERS */
-    .trigger-section { padding: 16px 16px 0; }
-    .trigger-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .trigger-btn { background: var(--cream); border: 1.5px solid var(--rule); border-radius: 12px; padding: 14px 12px; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s; }
-    .trigger-btn:active { transform: scale(0.97); }
-    .trigger-btn.loading { opacity: 0.5; pointer-events: none; }
-    .trigger-btn.morning { border-color: #e8a020; }
-    .trigger-btn.evening { border-color: var(--evening); }
-    .trigger-btn.morning .trigger-label { color: var(--morning); }
-    .trigger-btn.evening .trigger-label { color: var(--evening); }
-    .trigger-icon { font-size: 20px; margin-bottom: 3px; }
-    .trigger-label { font-size: 13px; font-weight: 500; display: block; }
-    .trigger-sub { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+    .edition-btn.active {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: var(--chip-bg);
+    }
 
-    /* SPINNER */
-    .spinner-wrap { text-align: center; padding: 30px 20px; display: none; }
-    .spinner-wrap.visible { display: block; }
-    .spinner { width: 26px; height: 26px; border: 2.5px solid var(--rule); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    .edition-sep { color: var(--rule); }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+    }
+
+    /* ── Section headers ────────────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 1.25rem 0 0.5rem;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 0;
+    }
+
+    .section-label {
+      font-family: var(--ui);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .section-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    /* ── Story cards ────────────────────────────────────────────────── */
+    .story-card {
+      border-bottom: 1px solid var(--rule);
+      padding: 1.2rem 0 1.1rem;
+    }
+
+    .story-card:last-child { border-bottom: none; }
+
+    .story-headline {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--ink);
+      margin-bottom: 0.55rem;
+      letter-spacing: -0.01em;
+    }
+
+    .story-headline a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .story-headline a:hover { color: var(--accent); }
+
+    .story-summary {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: var(--ink-mid);
+      margin-bottom: 0.75rem;
+    }
+
+    /* Source chips */
+    .story-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
+    .chip {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.18rem 0.5rem;
+      border-radius: 2px;
+      background: var(--chip-bg);
+      color: var(--ink-mid);
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+
+    .chip:hover {
+      background: var(--chip-hover);
+      border-color: var(--rule);
+      color: var(--ink);
+    }
+
+    .chip.paywalled {
+      opacity: 0.5;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .chip-pos {
+      color: var(--ink-faint);
+      font-weight: 400;
+    }
+
+    /* ── Loading / error states ─────────────────────────────────────── */
+    .state-box {
+      text-align: center;
+      padding: 4rem 1rem;
+      font-family: var(--ui);
+      color: var(--ink-faint);
+    }
+
+    .state-box .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner-label { font-size: 13px; color: var(--muted); font-style: italic; }
 
-    /* ERROR */
-    .error-box { background: #fff0ee; border: 1px solid #f0c0b8; border-radius: 10px; padding: 14px 16px; margin: 12px 16px 0; font-size: 13px; color: #a03020; line-height: 1.5; display: none; }
-    .error-box.visible { display: block; }
+    .state-box h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ink-mid);
+      margin-bottom: 0.35rem;
+    }
 
-    /* DIGEST */
-    .digest-section { margin: 16px 0 0; }
-    .digest-header { display: flex; align-items: baseline; gap: 8px; padding: 0 16px 10px; border-bottom: 1.5px solid var(--rule); margin: 0 16px 12px; flex-wrap: wrap; }
-    .digest-header-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; }
-    .digest-header-title.morning { color: var(--morning); }
-    .digest-header-title.evening { color: var(--evening); }
-    .digest-date-pill { display: inline-block; background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 10px; font-size: 10px; color: var(--muted); }
-    .digest-timestamp { font-size: 11px; color: var(--muted); margin-left: auto; }
+    .state-box p { font-size: 0.85rem; }
 
-    /* CARDS */
-    .cards-wrap { padding: 0 16px; }
-    .result-card { background: white; border-radius: 14px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); animation: slideUp 0.3s ease forwards; opacity: 0; }
-    .result-card.restored { animation: none; opacity: 1; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .result-card:nth-child(1) { animation-delay: 0.05s; }
-    .result-card:nth-child(2) { animation-delay: 0.12s; }
-    .result-card:nth-child(3) { animation-delay: 0.19s; }
-    .result-card:nth-child(4) { animation-delay: 0.26s; }
-    .result-card:nth-child(5) { animation-delay: 0.33s; }
-    .result-card:nth-child(6) { animation-delay: 0.40s; }
-    .card-header { display: flex; align-items: center; gap: 8px; padding: 11px 14px 9px; border-bottom: 1px solid #f0ebe0; }
-    .card-badge { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; }
-    .badge-intl { background: #fff0e6; color: #c05010; }
-    .badge-local { background: #e6f0f8; color: #2a4f7a; }
-    .card-num { font-size: 11px; color: var(--muted); margin-left: auto; font-family: 'Playfair Display', serif; font-style: italic; }
-    .card-body { padding: 12px 14px 14px; }
-    .card-headline { font-family: 'Playfair Display', serif; font-size: 16px; line-height: 1.4; color: var(--ink); margin-bottom: 10px; }
-    .card-summary { font-size: 13px; line-height: 1.7; color: #3a3530; margin-bottom: 12px; }
-    .card-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
-    .source-chip { background: var(--cream); border: 1px solid var(--rule); border-radius: 20px; padding: 3px 9px; font-size: 10px; color: var(--muted); font-weight: 500; text-decoration: none; display: inline-block; }
-    .source-chip-link { color: var(--accent); border-color: #e8c0b8; background: #fff5f4; }
-    .source-chip-paywall { color: var(--muted); border-color: var(--rule); background: var(--cream); opacity: 0.8; }
-    .card-time { font-size: 12px; color: var(--accent); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.02em; }
-    .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--accent); text-decoration: none; }
+    /* ── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--rule);
+      margin-top: 2rem;
+      padding: 1.25rem 0;
+      text-align: center;
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.04em;
+    }
 
-    /* COPY */
-    .copy-bar { display: flex; padding: 8px 16px 4px; }
-    .btn-copy { flex: 1; border: none; border-radius: 10px; padding: 13px 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity 0.2s; }
-    .btn-copy:active { opacity: 0.8; }
-    .btn-copy.morning-copy { background: #fff3d6; color: var(--morning); }
-    .btn-copy.evening-copy { background: #e6f0f8; color: var(--evening); }
+    footer a { color: inherit; }
 
-    /* NO UPDATE */
-    .no-update-card { background: white; border-radius: 14px; padding: 20px; text-align: center; margin: 0 0 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
-    .no-update-card p { font-family: 'Playfair Display', serif; font-style: italic; color: var(--muted); font-size: 14px; line-height: 1.6; }
-
-    .bottom-spacer { height: 40px; }
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .story-headline { font-size: 1.1rem; }
+      .story-summary  { font-size: 0.9rem; }
+    }
   </style>
 </head>
 <body>
 
-<!-- SETUP (unused — no API key needed from user) -->
-<div id="setup-screen">
-  <p class="setup-logo">Your morning briefing</p>
-  <h1 class="setup-title">Daily <span style="color:var(--accent)">Pulse</span></h1>
-  <div class="setup-rule"></div>
-  <p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.7;">
-    Daily Pulse delivers real-time Hong Kong and international news digests.<br>Tap ☀️ Morning or 🌙 Evening to get started.
-  </p>
-  <button class="btn-primary" style="margin-top:32px;" onclick="showMain()">Open Daily Pulse</button>
-</div>
-
-<!-- MAIN -->
-<div id="main-screen" style="display:none">
-  <div class="masthead">
-    <p class="masthead-eyebrow">Hong Kong Edition</p>
+<!-- ── Masthead ──────────────────────────────────────────────────────── -->
+<header class="masthead">
+  <div class="container">
+    <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
-    <p class="masthead-date" id="today-date"></p>
-    <button class="settings-btn" onclick="showSetup()" title="Clear saved digests">⚙︎</button>
-  </div>
-
-  <div class="trigger-section">
-    <div class="trigger-row">
-      <div class="trigger-btn morning" id="btn-morning" onclick="runDigest('morning')">
-        <div class="trigger-icon">☀️</div>
-        <span class="trigger-label">Morning</span>
-        <span class="trigger-sub" id="morning-sub">2 intl · 2 local</span>
-      </div>
-      <div class="trigger-btn evening" id="btn-evening" onclick="runDigest('evening')">
-        <div class="trigger-icon">🌙</div>
-        <span class="trigger-label">Evening</span>
-        <span class="trigger-sub" id="evening-sub">1 intl · 1 local</span>
-      </div>
+    <p class="masthead-meta" id="meta-line">Loading…</p>
+    <div class="edition-bar">
+      <button class="edition-btn" id="btn-morning" onclick="setEdition('morning')">☀︎ Morning</button>
+      <span class="edition-sep">|</span>
+      <button class="edition-btn" id="btn-evening" onclick="setEdition('evening')">◑ Evening</button>
     </div>
   </div>
+</header>
 
-  <div class="spinner-wrap" id="spinner">
+<!-- ── Main content ──────────────────────────────────────────────────── -->
+<main class="container" id="main-content">
+  <div class="state-box">
     <div class="spinner"></div>
-    <p class="spinner-label" id="spinner-label">Searching live headlines…</p>
+    <h2>Fetching today's digest…</h2>
+    <p>Pulling the latest headlines from across Hong Kong and the world.</p>
   </div>
+</main>
 
-  <div class="error-box" id="error-box"></div>
-
-  <div id="morning-section" style="display:none">
-    <div class="digest-section">
-      <div class="digest-header">
-        <span class="digest-header-title morning">☀️ Morning</span>
-        <span class="digest-date-pill" id="morning-date-pill"></span>
-        <span class="digest-timestamp" id="morning-timestamp"></span>
-      </div>
-      <div class="cards-wrap" id="morning-cards"></div>
-      <div class="copy-bar">
-        <button class="btn-copy morning-copy" onclick="copyDigest('morning')">Copy Morning to Capacities</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="evening-section" style="display:none">
-    <div class="digest-section">
-      <div class="digest-header">
-        <span class="digest-header-title evening">🌙 Evening</span>
-        <span class="digest-date-pill" id="evening-date-pill"></span>
-        <span class="digest-timestamp" id="evening-timestamp"></span>
-      </div>
-      <div class="cards-wrap" id="evening-cards"></div>
-      <div class="copy-bar">
-        <button class="btn-copy evening-copy" onclick="copyDigest('evening')">Copy Evening to Capacities</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="bottom-spacer"></div>
-</div>
+<footer class="container">
+  <p>Daily Pulse aggregates public headlines from AP, BBC, The Guardian, CNBC, RTHK, HKFP &amp; The Standard.
+  Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
+</footer>
 
 <script>
-// ── CONSTANTS ──
-const API_BASE = 'https://daily-pulse-theta.vercel.app';
-const PAYWALLED_SOURCES = ['WSJ', 'Bloomberg', 'FT'];
-const APPROVED_DOMAINS = [
-  'reuters.com', 'bbc.com', 'bloomberg.com', 'nytimes.com', 'cnn.com',
-  'wsj.com', 'cnbc.com', 'foxnews.com', 'foxbusiness.com', 'ft.com',
-  'apnews.com', 'theguardian.com', 'nbcnews.com',
-  'scmp.com', 'rthk.hk', 'hket.com', 'mingpao.com', 'hkt.com', 'on.cc',
-  'thestandard.com.hk', 'hongkongfp.com'
-];
-
-// Source chips only link to specific article URLs — no homepage fallbacks
-
-// ── STATE ──
-let digestStore = { morning: null, evening: null };
-let currentSession = 0;
-
-// ── INIT ──
-window.addEventListener('load', () => {
-  showMain();
-  restoreDigests();
-});
-
-function showMain() {
-  document.getElementById('setup-screen').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'block';
-  document.getElementById('today-date').textContent = formatDate(new Date());
-}
-
-function showSetup() {
-  if (confirm('Clear all saved digests and reset?')) {
-    digestStore = { morning: null, evening: null };
-    localStorage.removeItem('dp_digests');
-    document.getElementById('morning-section').style.display = 'none';
-    document.getElementById('evening-section').style.display = 'none';
-    updateSubtitles();
+  // ── Edition detection ──────────────────────────────────────────────
+  // Morning = 05:00–16:59 HKT   Evening = 17:00–04:59 HKT
+  function detectEdition() {
+    const hkt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
+    const h = hkt.getHours();
+    return (h >= 5 && h < 17) ? 'morning' : 'evening';
   }
-}
 
-// ── RESTORE ──
-function restoreDigests() {
-  const saved = localStorage.getItem('dp_digests');
-  if (!saved) return;
-  try {
-    digestStore = JSON.parse(saved);
-    if (digestStore.morning) renderSection('morning', digestStore.morning, true);
-    if (digestStore.evening) renderSection('evening', digestStore.evening, true);
-  } catch(e) {}
-  updateSubtitles();
-}
+  let currentEdition = detectEdition();
 
-function saveDigests() {
-  localStorage.setItem('dp_digests', JSON.stringify(digestStore));
-}
+  function setEdition(ed) {
+    currentEdition = ed;
+    document.getElementById('btn-morning').classList.toggle('active', ed === 'morning');
+    document.getElementById('btn-evening').classList.toggle('active', ed === 'evening');
+    document.getElementById('api-link').href = `/api/digest?type=${ed}`;
+    loadDigest(ed);
+  }
 
-// ── RUN ──
-async function runDigest(type) {
-  const session = ++currentSession;
-  hideError();
-  setLoading(true);
-
-  try {
-    const morningHeadlines = (type === 'evening' && digestStore.morning)
-      ? (digestStore.morning.items.international || []).map(i => i.headline)
-      : [];
-    const existingRecord = digestStore[type];
-    const today = new Date().toDateString();
-    const isFirstRun = !existingRecord || new Date(existingRecord.fetchedAt).toDateString() !== today;
-
-    updateSpinner('Searching latest headlines ┆');
-
-    const res = await fetch(API_BASE + '/api/digest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, morningHeadlines, isFirstRun })
+  // ── Formatting helpers ─────────────────────────────────────────────
+  function fmtDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('en-HK', {
+      timeZone: 'Asia/Hong_Kong',
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
-
-    if (session !== currentSession) return; // stale — a newer run started
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Couldn't fetch headlines right now. Please try again in a moment.");
-    }
-
-    const parsed = await res.json();
-
-    if (session !== currentSession) return; // stale
-
-    const merged = mergeDigests(digestStore[type], parsed, type);
-    const record = { items: merged, fetchedAt: new Date().toISOString() };
-    digestStore[type] = record;
-    saveDigests();
-    setLoading(false);
-    renderSection(type, record, false);
-    updateSubtitles();
-  } catch(e) {
-    if (session !== currentSession) return;
-    setLoading(false);
-    showError("Couldn't fetch headlines right now. Please try again in a moment.");
   }
-}
 
-// ── HELPERS ──
-function setLoading(on) {
-  document.getElementById('spinner').className = on ? 'spinner-wrap visible' : 'spinner-wrap';
-  document.getElementById('btn-morning').className = on ? 'trigger-btn morning loading' : 'trigger-btn morning';
-  document.getElementById('btn-evening').className = on ? 'trigger-btn evening loading' : 'trigger-btn evening';
-}
+  function editionLabel(type) {
+    return type === 'morning' ? '☀︎ Morning Edition' : '◑ Evening Edition';
+  }
 
-function updateSpinner(msg) {
-  document.getElementById('spinner-label').textContent = msg;
-}
-
-function showError(msg) {
-  const el = document.getElementById('error-box');
-  el.textContent = msg;
-  el.className = 'error-box visible';
-}
-
-function hideError() {
-  document.getElementById('error-box').className = 'error-box';
-}
-
-function formatDate(d) {
-  return d.toLocaleDateString('en-HK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-}
-
-function formatTime(d) {
-  return d.toLocaleTimeString('en-HK', { hour:'2-digit', minute:'2-digit' });
-}
-
-function updateSubtitles() {
-  const morning = digestStore.morning;
-  const evening = digestStore.evening;
-  const mIntl = morning ? (morning.items.international || []).length : 0;
-  const mLocal = morning ? (morning.items.local || []).length : 0;
-  const eIntl = evening ? (evening.items.international || []).length : 0;
-  const eLocal = evening ? (evening.items.local || []).length : 0;
-  const mSub = document.getElementById('morning-sub');
-  const eSub = document.getElementById('evening-sub');
-  if (mSub) mSub.textContent = morning ? (mIntl + ' intl · ' + mLocal + ' local') : '2 intl · 2 local';
-  if (eSub) eSub.textContent = evening ? (eIntl + ' intl · ' + eLocal + ' local') : '1 intl · 1 local';
-}
-
-// ── MERGE: combine old + new stories, rank by source_count then keep newest ──
-function mergeDigests(existingRecord, newItems, type) {
-  if (!existingRecord) return newItems;
-  const maxCount = type === 'evening' ? 1 : 2;
-
-  function mergeSection(oldArr, newArr) {
-    const combined = [...(oldArr || [])];
-    for (const newStory of (newArr || [])) {
-      const isDupe = combined.some(old =>
-        old.headline.toLowerCase().split(' ').filter(w => w.length > 4)
-          .filter(w => newStory.headline.toLowerCase().includes(w)).length >= 3
-      );
-      if (!isDupe) {
-        combined.push(newStory);
-      } else {
-        const idx = combined.findIndex(old =>
-          old.headline.toLowerCase().split(' ').filter(w => w.length > 4)
-            .filter(w => newStory.headline.toLowerCase().includes(w)).length >= 3
-        );
-        if (idx >= 0) {
-          const oldCount = combined[idx].source_count || (combined[idx].sources || []).length;
-          const newCount = newStory.source_count || (newStory.sources || []).length;
-          if (newCount >= oldCount) combined[idx] = newStory; // equal or better → keep newer
-        }
+  // ── Render ─────────────────────────────────────────────────────────
+  function renderChips(sources) {
+    return sources.map(s => {
+      if (s.paywalled || !s.url) {
+        return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
       }
-    }
-    combined.sort((a, b) => {
-      const aCount = a.source_count || (a.sources || []).length;
-      const bCount = b.source_count || (b.sources || []).length;
-      return bCount - aCount;
-    });
-    return combined.slice(0, maxCount);
+      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">
+        ${s.name} <span class="chip-pos">#${s.position}</span>
+      </a>`;
+    }).join('');
   }
 
-  return {
-    international: mergeSection(existingRecord.items.international, newItems.international),
-    local: mergeSection(existingRecord.items.local, newItems.local),
-    no_update_intl: (!newItems.international || !newItems.international.length) &&
-                    (!existingRecord.items.international || !existingRecord.items.international.length),
-    no_update_local: (!newItems.local || !newItems.local.length) &&
-                     (!existingRecord.items.local || !existingRecord.items.local.length),
-  };
-}
-
-// ── RENDER ──
-function renderSection(type, record, restored) {
-  const section = document.getElementById(type + '-section');
-  const cardsWrap = document.getElementById(type + '-cards');
-  const datePill = document.getElementById(type + '-date-pill');
-  const timestamp = document.getElementById(type + '-timestamp');
-  const fetchedAt = new Date(record.fetchedAt);
-
-  datePill.textContent = formatDate(fetchedAt);
-  timestamp.textContent = 'Fetched at ' + formatTime(fetchedAt);
-  cardsWrap.innerHTML = '';
-
-  const intl = record.items.international || [];
-  const local = record.items.local || [];
-
-  if (!intl.length && !local.length) {
-    cardsWrap.innerHTML = '<div class="no-update-card"><p>No important update.<br>No headline reached the threshold.</p></div>';
-  } else {
-    if (record.items.no_update_intl || !intl.length) {
-      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>No international update.</p></div>');
-    } else {
-      intl.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'intl', i + 1, restored)));
-    }
-    if (record.items.no_update_local || !local.length) {
-      cardsWrap.insertAdjacentHTML('beforeend', '<div class="no-update-card"><p>No local HK update.</p></div>');
-    } else {
-      local.forEach((item, i) => cardsWrap.appendChild(makeCard(item, 'local', i + 1, restored)));
-    }
-  }
-  section.style.display = 'block';
-}
-
-function makeCard(item, type, num, restored) {
-  const card = document.createElement('div');
-  card.className = restored ? 'result-card restored' : 'result-card';
-
-  const badgeClass = type === 'intl' ? 'badge-intl' : 'badge-local';
-  const badgeText = type === 'intl' ? '🌍 International' : '🇭🇰 Local HK';
-
-  const sources = item.sources && item.sources.length
-    ? item.sources
-    : [{ name: 'Source unknown', position: null, url: null, paywalled: false }];
-
-  const chips = sources.map(s => {
-    const pos = s.position ? ' #' + s.position : '';
-    const isPaywalled = s.paywalled || PAYWALLED_SOURCES.includes(s.name);
-
-    // Paywalled sources: show chip but never hyperlink
-    if (isPaywalled) {
-      return '<span class="source-chip source-chip-paywall" title="Paywalled">' + s.name + pos + ' 🔒</span>';
-    }
-
-    // Free sources: hyperlink only if a specific article URL is available
-    const href = s.url || null;
-    if (href) {
-      return '<a class="source-chip source-chip-link" href="' + href + '" target="_blank" rel="noopener">' + s.name + pos + '</a>';
-    }
-    return '<span class="source-chip">' + s.name + pos + '</span>';
-  }).join('');
-
-  const timeHtml = item.time && item.time !== 'unknown'
-    ? '<p class="card-time">' + item.time + '</p>'
-    : '';
-
-  const linkHtml = item.url
-    ? '<a class="card-link" href="' + item.url + '" target="_blank" rel="noopener">Read full article →</a>'
-    : '';
-
-  card.innerHTML =
-    '<div class="card-header">' +
-      '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
-      '<span class="card-num">' + num + '</span>' +
-    '</div>' +
-    '<div class="card-body">' +
-      '<p class="card-headline">' + item.headline + '</p>' +
-      timeHtml +
-      '<p class="card-summary">' + (item.summary || '') + '</p>' +
-      '<div class="card-sources">' + chips + '</div>' +
-      linkHtml +
-    '</div>';
-
-  return card;
-}
-
-// ── COPY ──
-function copyDigest(type) {
-  const record = digestStore[type];
-  if (!record) return;
-
-  const label = type === 'morning' ? '☀️ MORNING DIGEST' : '🌙 EVENING DIGEST';
-  const fetchedAt = new Date(record.fetchedAt);
-  let text = label + '\n' + formatDate(fetchedAt) + ' · ' + formatTime(fetchedAt) + '\n\n';
-
-  const intl = record.items.international || [];
-  const local = record.items.local || [];
-
-  if (intl.length) {
-    text += '🌍 INTERNATIONAL\n\n';
-    intl.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s =>
-        s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')
-      ).join(', ');
-      text += (i+1) + '. ' + item.headline + '\n\n' +
-              (item.summary || '') + '\n\nSources: ' + srcs + '\n' +
-              (item.url || '') + '\n\n';
-    });
-  } else {
-    text += '🌍 INTERNATIONAL\nNo international update.\n\n';
+  function renderCluster(c) {
+    const headline = c.readUrl
+      ? `<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
+      : c.headline;
+    return `
+      <article class="story-card">
+        <h2 class="story-headline">${headline}</h2>
+        <p class="story-summary">${c.summary}</p>
+        <div class="story-chips">${renderChips(c.sources)}</div>
+      </article>`;
   }
 
-  if (local.length) {
-    text += '🇭🇰 LOCAL HK\n\n';
-    local.forEach((item, i) => {
-      const srcs = (item.sources || []).map(s =>
-        s.name + ' #' + s.position + (s.paywalled ? ' 🔒' : '')
-      ).join(', ');
-      text += (i+1) + '. ' + item.headline + '\n\n' +
-              (item.summary || '') + '\n\nSources: ' + srcs + '\n' +
-              (item.url || '') + '\n\n';
-    });
-  } else {
-    text += '🇭🇰 LOCAL HK\nNo local HK update.\n\n';
+  function renderSection(label, clusters) {
+    if (!clusters || clusters.length === 0) return '';
+    return `
+      <div class="section-header">
+        <span class="section-label">${label}</span>
+        <span class="section-rule"></span>
+      </div>
+      ${clusters.map(renderCluster).join('')}`;
   }
 
-  const btn = document.querySelector('.btn-copy.' + type + '-copy');
-  const orig = btn.textContent;
+  function renderDigest(data) {
+    const intl  = renderSection('International', data.international);
+    const local = renderSection('Hong Kong', data.local);
 
-  navigator.clipboard.writeText(text.trim()).then(() => {
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  }).catch(() => {
-    const ta = document.createElement('textarea');
-    ta.value = text.trim();
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  });
-}
+    if (!intl && !local) {
+      return `<div class="state-box"><h2>No stories yet</h2>
+        <p>The digest hasn't been generated yet. Check back after the next scheduled run.</p></div>`;
+    }
+
+    return intl + local;
+  }
+
+  // ── Fetch ──────────────────────────────────────────────────────────
+  async function loadDigest(edition) {
+    const main = document.getElementById('main-content');
+    const meta = document.getElementById('meta-line');
+
+    main.innerHTML = `<div class="state-box">
+      <div class="spinner"></div>
+      <h2>Fetching ${edition} digest…</h2>
+      <p>This usually takes a second.</p>
+    </div>`;
+
+    try {
+      const res = await fetch(`/api/digest?type=${edition}`);
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const data = await res.json();
+
+      meta.textContent = `${editionLabel(data.type)} · ${fmtDate(data.generatedAt)}`;
+      main.innerHTML = renderDigest(data);
+    } catch (err) {
+      meta.textContent = 'Could not load digest';
+      main.innerHTML = `<div class="state-box">
+        <h2>Something went wrong</h2>
+        <p>${err.message}</p>
+        <p style="margin-top:0.5rem">Try refreshing, or check back in a few minutes.</p>
+      </div>`;
+    }
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────────
+  setEdition(currentEdition);
 </script>
 </body>
 </html>
