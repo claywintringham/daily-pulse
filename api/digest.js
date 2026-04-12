@@ -119,8 +119,8 @@ function sanitiseExtract(text) {
     .replace(/\[[a-zA-Z][a-zA-Z]*\]/g, '')
     // "Updated …" line ending at AP dateline em-dash: "Updated … JERUSALEM (AP) — "
     .replace(/^Updated\b[^—\n]*[—–]\s*/im, '')
-    // Bare AP dateline at paragraph start: "JERUSALEM (AP) — "
-    .replace(/^[A-Z][A-Z ,]+\([A-Z]+\)\s*[—–]\s*/m, '')
+    // Bare AP dateline at paragraph start: "JERUSALEM (AP) — " or "BUDAPEST, Hungary (AP) — "
+    .replace(/^[A-Z][A-Za-z ,]+\([A-Z]+\)\s*[—–]\s*/m, '')
     // Video duration chip: "3:45 • Source: CNN" or "3:45 · Source: ..."
     .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
     // Repeated "Exclusive:" video-embed labels left by CNN player
