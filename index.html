@@ -281,24 +281,24 @@
       line-height: 1.6;
     }
 
-    /* ── Story inline meta: (link), #tag, copy icon ────────────────── */
-    .story-link {
+    /* ── Learn more link ────────────────────────────────────────────── */
+    .learn-more-link {
       font-family: var(--ui);
-      font-size: 0.82rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--accent);
       text-decoration: none;
-      margin-left: 0.3em;
+      letter-spacing: 0.02em;
     }
 
-    .story-link:hover { text-decoration: underline; }
+    .learn-more-link:hover { text-decoration: underline; }
 
-    .story-tag {
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      color: var(--ink-faint);
-      margin-left: 0.35em;
-      letter-spacing: 0.01em;
+    /* ── Story footer: learn-more + per-story copy icon ─────────────── */
+    .story-footer {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.55rem;
     }
 
     .story-copy-btn {
@@ -308,9 +308,7 @@
       border: none;
       cursor: pointer;
       color: var(--ink-faint);
-      padding: 0 0.15em;
-      margin-left: 0.2em;
-      vertical-align: middle;
+      padding: 0;
       transition: color 0.15s;
       line-height: 1;
     }
@@ -451,13 +449,14 @@
     const pubTime  = fmtPublished(c.publishedAt);
     const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
 
-    // Inline (link), #tag, and copy icon — all appended inside the summary <p>
-    const linkHtml = c.learnMoreUrl
-      ? ` <a class="story-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">(link)</a>`
+    // "Learn more →" visible link + clipboard copy icon, displayed together below the summary
+    const learnMoreHtml = c.learnMoreUrl
+      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">Learn more →</a>`
       : '';
-    const tagHtml  = tag ? ` <span class="story-tag">#${tag}</span>` : '';
 
-    const copyBtn  = `<button class="story-copy-btn"
+    // Copy button — data attributes hold the values used to build the pasted text
+    // (copied text uses "(link)" format + #tag for note-taking apps)
+    const copyBtn = `<button class="story-copy-btn"
       data-headline="${escAttr(c.headline)}"
       data-summary="${escAttr(c.summary || '')}"
       data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}"
@@ -469,12 +468,17 @@
       </svg>
     </button>`;
 
+    const footer = (learnMoreHtml || copyBtn)
+      ? `<div class="story-footer">${learnMoreHtml}${copyBtn}</div>`
+      : '';
+
     return `
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
         ${timeHtml}
-        <p class="story-summary">${c.summary || ''}${linkHtml}${tagHtml} ${copyBtn}</p>
+        <p class="story-summary">${c.summary || ''}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
+        ${footer}
       </article>`;
   }
 
