@@ -57,6 +57,50 @@ const STORY_COUNTS = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
+ * Trusted source priority for "Learn more" links.
+ * Ordered by editorial neutrality and comprehensiveness — we want the most
+ * thorough, factual version of the story, not an opinion piece or niche outlet.
+ */
+const LEARN_MORE_PRIORITY = [
+  'ap', 'reuters', 'bbc', 'guardian', 'rthk', 'hkfp', 'thestandard', 'scmp',
+  'cnbc', 'aljazeera', 'dw', 'france24', 'nbcnews', 'cbsnews',
+  'foxnews', 'foxbusiness',
+];
+
+/**
+ * Return the articleUrl from the most trusted free source in the cluster.
+ * Falls back to any free source with an articleUrl if none match the priority list.
+ */
+function pickLearnMoreUrl(c) {
+  const freeWithUrl = (c.members ?? []).filter(m => !m.isPaywalled && m.articleUrl);
+  if (!freeWithUrl.length) return null;
+
+  const ranked = [...freeWithUrl].sort((a, b) => {
+    const ra = LEARN_MORE_PRIORITY.findIndex(s =>
+      a.sourceId?.toLowerCase().includes(s));
+    const rb = LEARN_MORE_PRIORITY.findIndex(s =>
+      b.sourceId?.toLowerCase().includes(s));
+    return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+  });
+  return ranked[0].articleUrl;
+}
+
+/**
+ * Return true when more than half of the cluster's members published
+ * within the past 4 hours — indicating a breaking story.
+ */
+function computeIsBreaking(members) {
+  if (!members?.length) return false;
+  const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
+  const recentCount  = members.filter(m => {
+    if (!m.publishedAt) return false;
+    const t = new Date(m.publishedAt).getTime();
+    return !isNaN(t) && t >= fourHoursAgo;
+  }).length;
+  return recentCount > members.length / 2;
+}
+
+/**
  * Headline-based fuzzy deduplication between editions.
  *
  * Tokenise a headline into a set of meaningful words (length > 2, lowercased).
@@ -185,12 +229,14 @@ function formatStories(clusters) {
     const publishedAt = dates.length ? new Date(Math.min(...dates)).toISOString() : null;
 
     return {
-      id:          c.id,
-      headline:    decodeEntities(c.headline),
-      summary:     c.summary ?? decodeEntities(c.headline),
-      readUrl:     pickStoryUrl(c),
+      id:           c.id,
+      headline:     decodeEntities(c.headline),
+      summary:      c.summary ?? decodeEntities(c.headline),
+      readUrl:      pickStoryUrl(c),
+      learnMoreUrl: pickLearnMoreUrl(c),
+      isBreaking:   computeIsBreaking(c.members),
       publishedAt,
-      sources:     buildSourceChips(c),
+      sources:      buildSourceChips(c),
       _meta: {
         qualificationRank: c.qualificationRank,
         baseScore:         c.baseScore,
@@ -265,8 +311,11 @@ export default async function handler(req, res) {
     // ── 5. Summarization (sequential to avoid Gemini rate-limit collisions) ───
     // After summarisation, deduplicate within each bucket: greedy clustering
     // can split a large story into two clusters that share a synthesised headline.
-    const summarisedIntl  = deduplicateByHeadline(await summarizeClusters(filteredIntl));
-    const summarisedLocal = deduplicateByHeadline(await summarizeClusters(filteredLocal));
+    // After dedup, re-sort by baseScore descending so importance order is
+    // preserved even when the editorial filter or dedup reorders clusters.
+    const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
+    const summarisedIntl  = byScore(deduplicateByHeadline(await summarizeClusters(filteredIntl)));
+    const summarisedLocal = byScore(deduplicateByHeadline(await summarizeClusters(filteredLocal)));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
     // ── 6. Morning / evening differentiation ───────────────────────────────
