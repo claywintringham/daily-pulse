@@ -23,8 +23,18 @@ const FORBIDDEN = 'Al Jazeera, Anadolu Agency, The News Pakistan, Kurdistan24, '
 
 // ── URL VALIDATION ──
 
+// Vertex AI grounding redirect URLs — always point to specific articles
+function isVertexRedirect(url) {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname === 'vertexaisearch.cloud.google.com';
+  } catch { return false; }
+}
+
 function isApprovedDomain(url) {
   if (!url || url === 'NOT FOUND') return false;
+  // Vertex AI redirect URLs always resolve to real articles — accept them
+  if (isVertexRedirect(url)) return true;
   try {
     const hostname = new URL(url).hostname.replace('www.', '');
     return APPROVED_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
@@ -33,6 +43,8 @@ function isApprovedDomain(url) {
 
 function isArticleUrl(url) {
   if (!url) return false;
+  // Vertex AI redirect URLs always point to specific articles, never homepages
+  if (isVertexRedirect(url)) return true;
   try {
     const u = new URL(url);
     // Reject pure homepages: path must be more than just /section-name
@@ -51,26 +63,13 @@ function extractGroundingUrls(chunks) {
     .map(c => ({ uri: c.web.uri, title: c.web.title || '' }));
 }
 
-// Resolve redirect URLs in parallel to get actual article URLs
-async function resolveGroundingUrls(rawUrls) {
+// Prepare grounding URLs for Call 2 — pass Vertex AI redirect URLs directly
+// (browser follows redirects to actual articles; no server-side fetch needed)
+function prepareGroundingUrls(rawUrls) {
   if (!rawUrls || !rawUrls.length) return [];
-  const results = await Promise.all(
-    rawUrls.slice(0, 20).map(async ({ uri, title }) => {
-      try {
-        const response = await fetch(uri, {
-          method: 'HEAD',
-          redirect: 'follow',
-          signal: AbortSignal.timeout(5000)
-        });
-        const resolved = response.url;
-        if (isApprovedDomain(resolved) && isArticleUrl(resolved)) {
-          return { uri: resolved, title };
-        }
-        return null;
-      } catch { return null; }
-    })
-  );
-  return results.filter(Boolean);
+  return rawUrls
+    .slice(0, 25)
+    .filter(({ uri }) => isVertexRedirect(uri) || (isApprovedDomain(uri) && isArticleUrl(uri)));
 }
 
 // ── GEMINI API CALL ──
@@ -206,28 +205,27 @@ function call1Prompt(type, morningHeadlines, isFirstRun) {
     'TIME: [exact time, e.g. "2 hours ago" or "45 minutes ago" — MUST be specific, never just "Hours ago"]\n' +
     'COVERING SOURCES: [source name and position rank]\n' +
     'FREE SOURCES: [non-paywalled sources]\n' +
-    'SUMMARY: [70 words max]\n\n' +
+    'SUMMARY: [40-75 words. Write substantive sentences with context and key facts. NEVER just restate the headline. Include who, what, why/impact.]\n\n' +
     'Plain text only. No JSON. Label sections INTERNATIONAL STORIES and LOCAL HK STORIES.';
 }
 
 function call2JsonPrompt(trendReport, type, isFirstRun, groundingUrls) {
   const count = type === 'evening' ? 1 : 2;
   const firstRunNote = isFirstRun
-    ? 'CRITICAL: First run. Both arrays must be non-empty with real stories only. No placeholders. No invented sources.'
+    ? 'CRITICAL: First run. international MUST have at least ' + count + ' real stories. local MUST have at least 1 real HK story. Both arrays MUST be non-empty. No placeholders. No invented sources. If local HK stories are sparse, include the most prominent HK story available within the recency window.'
     : 'Empty arrays allowed if no stories qualified.';
   const groundingSection = (groundingUrls && groundingUrls.length)
     ? '\nVERIFIED ARTICLE URLs (sourced during research — these are real URLs, prefer these):\n' +
       groundingUrls.slice(0, 25).map(u => '- ' + u.uri + (u.title ? ' [' + u.title.substring(0, 80) + ']' : '')).join('\n') + '\n'
     : '';
-
-  return 'Convert this trend report into a JSON object.\n\n' +
+    return 'Convert this trend report into a JSON object.\n\n' +
     'TREND REPORT:\n' + trendReport + '\n\n' +
     groundingSection +
     'APPROVED SOURCES ONLY: ' + INTL_SOURCES + ', ' + LOCAL_SOURCES + '\n\n' +
     'JSON SCHEMA:\n' +
     '{"international":[{"headline":"...","time":"3 hours ago","summary":"...","source_count":N,' +
     '"sources":[{"name":"Reuters","position":1,"url":"https://reuters.com/world/story-slug-2026-04-12/","paywalled":false}],' +
-    '"url":"https://reuters.com/world/story-qDhom/world/story-slug-2026-04-12/"}],"local":[...]}\n\n' +
+    '"url":"https://reuters.com/world/story-slug-2026-04-12/"}],"local":[...]}\n\n' +
     'STRICT RULES:\n' +
     '- ' + firstRunNote + '\n' +
     '- international: up to ' + count + ' stories. local: up to ' + count + ' stories.\n' +
@@ -235,7 +233,7 @@ function call2JsonPrompt(trendReport, type, isFirstRun, groundingUrls) {
     '- paywalled: true for WSJ, Bloomberg, FT only.\n' +
     '- story url and source url: ONLY use URLs from VERIFIED ARTICLE URLs above. NEVER a homepage like https://reuters.com. NEVER invent URLs. Set null if not found in VERIFIED list.\n' +
     '- time: specific elapsed time like "2 hours ago" or "45 minutes ago". NEVER vague like "Hours ago".\n' +
-    '- summary: complete sentences, 70 words max, never truncate mid-sentence.\n' +
+    '- summary: 40-75 words. Complete sentences with context, key facts, and impact. NEVER just restate the headline. Include who did what, why it matters, and any key numbers/consequences.\n' +
     '- source_count: integer count of approved sources covering this story.\n' +
     '- no_update_intl: true if international empty.\n' +
     '- no_update_local: true if local empty.\n' +
@@ -345,9 +343,9 @@ export default async function handler(req, res) {
       true
     );
     const trendReport = call1Result.text;
-    // Resolve Vertex AI redirect URLs to actual article URLs in parallel
+    // Pass Vertex AI redirect URLs directly — browser follows redirects to real articles
     const rawGroundingUrls = call1Result.groundingUrls || [];
-    const groundingUrls = await resolveGroundingUrls(rawGroundingUrls);
+    const groundingUrls = prepareGroundingUrls(rawGroundingUrls);
 
     // Call 2 (JSON mode): Structure output using trend report + verified grounding URLs
     const raw = await callGemini(
