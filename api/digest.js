@@ -15,6 +15,24 @@
 // Vercel config: maxDuration 120 s (Pro plan).
 
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
+
+/** Decode common HTML entities so raw &amp;, &#39; etc. never reach the UI. */
+function decodeEntities(text) {
+  if (!text) return text;
+  return text
+    .replace(/&amp;/g,   '&')
+    .replace(/&lt;/g,    '<')
+    .replace(/&gt;/g,    '>')
+    .replace(/&quot;/g,  '"')
+    .replace(/&#39;/g,   "'")
+    .replace(/&#x27;/g,  "'")
+    .replace(/&apos;/g,  "'")
+    .replace(/&nbsp;/g,  ' ')
+    .replace(/&#(\d+);/g,     (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 import { editorialFilter, summarizeClusters } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
@@ -147,8 +165,8 @@ function formatStories(clusters) {
 
     return {
       id:          c.id,
-      headline:    c.headline,
-      summary:     c.summary ?? c.headline,
+      headline:    decodeEntities(c.headline),
+      summary:     c.summary ?? decodeEntities(c.headline),
       readUrl:     pickStoryUrl(c),
       publishedAt,
       sources:     buildSourceChips(c),
@@ -223,11 +241,9 @@ export default async function handler(req, res) {
     const filteredIntl  = filtered.filter(c => c.bucket === 'international');
     const filteredLocal = filtered.filter(c => c.bucket === 'local');
 
-    // ── 5. Summarization (both buckets in parallel) ─────────────────────────
-    const [summarisedIntl, summarisedLocal] = await Promise.all([
-      summarizeClusters(filteredIntl),
-      summarizeClusters(filteredLocal),
-    ]);
+    // ── 5. Summarization (sequential to avoid Gemini rate-limit collisions) ───
+    const summarisedIntl  = await summarizeClusters(filteredIntl);
+    const summarisedLocal = await summarizeClusters(filteredLocal);
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
     // ── 6. Morning / evening differentiation ───────────────────────────────
