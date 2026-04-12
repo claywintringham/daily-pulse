@@ -68,21 +68,27 @@ const LEARN_MORE_PRIORITY = [
 ];
 
 /**
- * Return the articleUrl from the most trusted free source in the cluster.
- * Falls back to any free source with an articleUrl if none match the priority list.
+ * Return all free articleUrls for the cluster, sorted by source trust priority.
+ * Used by enrichWithArticleContent to try each in turn until one succeeds.
+ */
+function rankLearnMoreUrls(c) {
+  const freeWithUrl = (c.members ?? []).filter(m => !m.isPaywalled && m.articleUrl);
+  if (!freeWithUrl.length) return [];
+
+  return [...freeWithUrl]
+    .sort((a, b) => {
+      const ra = LEARN_MORE_PRIORITY.findIndex(s => a.sourceId?.toLowerCase().includes(s));
+      const rb = LEARN_MORE_PRIORITY.findIndex(s => b.sourceId?.toLowerCase().includes(s));
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    })
+    .map(m => m.articleUrl);
+}
+
+/**
+ * Return the top-ranked free articleUrl (used for the "Learn more" link).
  */
 function pickLearnMoreUrl(c) {
-  const freeWithUrl = (c.members ?? []).filter(m => !m.isPaywalled && m.articleUrl);
-  if (!freeWithUrl.length) return null;
-
-  const ranked = [...freeWithUrl].sort((a, b) => {
-    const ra = LEARN_MORE_PRIORITY.findIndex(s =>
-      a.sourceId?.toLowerCase().includes(s));
-    const rb = LEARN_MORE_PRIORITY.findIndex(s =>
-      b.sourceId?.toLowerCase().includes(s));
-    return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
-  });
-  return ranked[0].articleUrl;
+  return rankLearnMoreUrls(c)[0] ?? null;
 }
 
 /**
@@ -128,17 +134,27 @@ async function fetchArticleExcerpt(url) {
 }
 
 /**
- * Enrich each cluster with an `articleExcerpt` by fetching its learnMoreUrl.
- * Runs up to `concurrency` fetches in parallel; attaches excerpt in-place.
+ * Enrich each cluster with an `articleExcerpt` by fetching member article URLs
+ * in priority order until one returns usable content.
+ *
+ * _learnMoreUrl is always set to the top-ranked URL (regardless of fetch
+ * outcome) so the "Learn more" link is stable.  articleExcerpt may come from
+ * a lower-ranked source if the top source times out or bot-blocks.
  */
 async function enrichWithArticleContent(clusters, concurrency = 6) {
   for (let i = 0; i < clusters.length; i += concurrency) {
     const batch = clusters.slice(i, i + concurrency);
     await Promise.all(batch.map(async c => {
-      const url = pickLearnMoreUrl(c);
-      if (!url) return;
-      c._learnMoreUrl   = url; // stash for formatStories to reuse
-      c.articleExcerpt  = await fetchArticleExcerpt(url);
+      const urls = rankLearnMoreUrls(c);
+      if (!urls.length) return;
+      c._learnMoreUrl = urls[0]; // best URL for the "Learn more" link
+      for (const url of urls) {
+        const excerpt = await fetchArticleExcerpt(url);
+        if (excerpt) {
+          c.articleExcerpt = excerpt;
+          break; // got real content — stop trying
+        }
+      }
     }));
   }
 }
