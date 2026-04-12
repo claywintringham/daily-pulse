@@ -486,6 +486,43 @@
     } catch {}
   }
 
+  // ── Language + translation-cache persistence ───────────────────────
+  // dp_lang          → 'en' | 'zh'
+  // dp_xlat_{genAt}  → JSON translation cache for that exact digest version.
+  //                    Old entries are pruned whenever a new version is saved
+  //                    so storage doesn't grow unboundedly.
+  const LS_LANG     = 'dp_lang';
+  const LS_XLAT_PFX = 'dp_xlat_';
+
+  function saveLang(lang) {
+    try { localStorage.setItem(LS_LANG, lang); } catch {}
+  }
+
+  function loadLang() {
+    try { return localStorage.getItem(LS_LANG) || 'en'; } catch { return 'en'; }
+  }
+
+  function saveXlatCache(generatedAt, cache) {
+    try {
+      // Prune any stale xlat entries before writing the new one
+      const target = LS_XLAT_PFX + generatedAt;
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(LS_XLAT_PFX) && k !== target) keys.push(k);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(target, JSON.stringify(cache));
+    } catch {}
+  }
+
+  function loadXlatCache(generatedAt) {
+    try {
+      const raw = localStorage.getItem(LS_XLAT_PFX + generatedAt);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+
   // ── Formatting helpers ─────────────────────────────────────────────
   function fmtDate(iso) {
     if (!iso) return '';
@@ -637,6 +674,8 @@
           translationCache = Object.fromEntries(
             (data.items || []).map(it => [it.id, it])
           );
+          // Persist so the next open/refresh is instant
+          if (currentGeneratedAt) saveXlatCache(currentGeneratedAt, translationCache);
         } catch (err) {
           console.error('[lang] translation failed:', err);
           if (main) main.classList.remove('translating');
@@ -651,6 +690,7 @@
       }
 
       currentLang = 'zh';
+      saveLang('zh');
       btnZh.textContent = '中';
       btnZh.classList.add('active');
       btnEn.classList.remove('active');
@@ -658,6 +698,7 @@
 
     } else {
       currentLang = 'en';
+      saveLang('en');
       btnEn.classList.add('active');
       btnZh.classList.remove('active');
     }
@@ -671,13 +712,9 @@
   async function handleRefresh() {
     const btn = document.getElementById('refresh-btn');
     btn.disabled = true;
-    // Reset lang state so fresh data starts in English
-    currentLang      = 'en';
+    // Clear in-memory cache — loadDigest will restore from localStorage if
+    // the digest hasn't changed, or call the translate API if it has.
     translationCache = null;
-    const btnEn = document.getElementById('lang-en');
-    const btnZh = document.getElementById('lang-zh');
-    if (btnEn) { btnEn.classList.add('active');    btnEn.disabled = false; }
-    if (btnZh) { btnZh.classList.remove('active'); btnZh.disabled = false; btnZh.textContent = '中'; }
     await loadDigest();
     btn.disabled = false;
   }
@@ -761,9 +798,20 @@
       currentDigestData  = data;
       currentGeneratedAt = data.generatedAt;
 
+      // Restore persisted translation cache for this exact digest version.
+      // If the digest has been regenerated (new generatedAt) this returns null
+      // and a fresh translation is triggered below.
+      translationCache = loadXlatCache(data.generatedAt);
+
       updateMetaLine();
       document.getElementById('api-link').href = '/api/digest';
       main.innerHTML = renderDigest(data);
+
+      // If the user left in Chinese but the cache was stale (new digest version),
+      // kick off translation automatically so they don't have to toggle manually.
+      if (currentLang === 'zh' && !translationCache) {
+        setLang('zh');
+      }
     } catch (err) {
       meta.textContent = t('errMeta');
       main.innerHTML = `<div class="state-box">
@@ -775,6 +823,19 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────
+  // Restore language preference before first render so the UI buttons
+  // and all t() calls reflect the correct language immediately.
+  (function restoreLang() {
+    const saved = loadLang();
+    if (saved === 'zh') {
+      currentLang = 'zh';
+      const btnEn = document.getElementById('lang-en');
+      const btnZh = document.getElementById('lang-zh');
+      if (btnEn) btnEn.classList.remove('active');
+      if (btnZh) btnZh.classList.add('active');
+    }
+  })();
+
   loadDigest();
 </script>
 </body>
