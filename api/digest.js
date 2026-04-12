@@ -201,11 +201,17 @@ function extractTextFromHtml(html, url = '', maxChars = 1500) {
  * to be considered on-topic.  Prevents a financial sidebar or related-article
  * teaser from being accepted as the summary source for a different story.
  *
- * Requires ≥ 30 % of meaningful headline tokens (length > 3) to appear in the
- * excerpt, with a floor of 3 matches.  A floor of 2 was too loose — short common
- * words like "trump" + "says" could satisfy the check against a completely
- * unrelated article (e.g. a 2004 Apprentice TV pilot passing for a Hormuz
- * blockade story because both contained "trump" and "says").
+ * Two-tier check:
+ *
+ * 1. ANCHOR GATE — any token longer than 6 characters is treated as a key
+ *    subject word (e.g. "blockade", "concedes", "supermajority").  If the
+ *    headline has at least one such word, the excerpt MUST contain at least
+ *    one of them.  This rejects articles that only share short common words
+ *    ("trump", "says", "will") but are clearly about a different topic
+ *    (e.g. a 2004 Apprentice TV pilot won't contain "blockade").
+ *
+ * 2. OVERLAP GATE — ≥ 30 % of all meaningful tokens (length > 3) must
+ *    appear in the excerpt, with a floor of 3 matches.
  */
 function excerptIsRelevant(headline, excerpt) {
   if (!headline || !excerpt) return false;
@@ -216,6 +222,14 @@ function excerptIsRelevant(headline, excerpt) {
     .filter(w => w.length > 3);
   if (!tokens.length) return true; // nothing meaningful to check
   const ex = excerpt.toLowerCase();
+
+  // ── 1. Anchor gate ────────────────────────────────────────────────────────
+  // Distinctive long words (>6 chars) are the story's key subjects.
+  // At least one must appear in the excerpt, or it's clearly off-topic.
+  const anchors = tokens.filter(w => w.length > 6);
+  if (anchors.length > 0 && !anchors.some(a => ex.includes(a))) return false;
+
+  // ── 2. Overlap gate ───────────────────────────────────────────────────────
   const hits = tokens.filter(t => ex.includes(t)).length;
   return hits >= Math.max(3, Math.floor(tokens.length * 0.30));
 }
