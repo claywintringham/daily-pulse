@@ -439,12 +439,18 @@ export default async function handler(req, res) {
     // can split a large story into two clusters that share a synthesised headline.
     // After dedup, re-sort by baseScore descending so importance order is
     // preserved even when the editorial filter or dedup reorders clusters.
-    // Filter out stories whose headline is phrased as a question.
-    // Questions speculate about the future rather than reporting what happened.
-    // Exception: opinion/analysis/interview pieces are already discarded by
-    // editorialFilter before this point, so any remaining question headline
-    // is a genuine false positive (speculation masquerading as news).
-    const noQuestions = arr => arr.filter(c => !c.headline.trim().endsWith('?'));
+    // Filter out stories with subjective or speculative headlines.
+    // These slip through when every source in a cluster uses an analysis/opinion
+    // framing, so pickBestHeadline has no factual title to fall back on.
+    const HEADLINE_SKIP = [
+      /\?$/,                                              // speculative question
+      /^(analysis|opinion|comment|explainer|review|interview)[:\s]/i, // editorial label
+      /^live:/i,                                          // live blog title
+      /\blive:/i,                                         // "X crisis live: ..."
+    ];
+    const noQuestions = arr => arr.filter(
+      c => !HEADLINE_SKIP.some(p => p.test(c.headline.trim()))
+    );
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
     const summarisedIntl  = byScore(deduplicateByHeadline(noQuestions(await summarizeClusters(filteredIntl))));
