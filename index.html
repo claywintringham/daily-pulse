@@ -1,601 +1,125 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Daily Pulse — Hong Kong</title>
-  <style>
-    /* ── Reset & base ───────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --ink:       #111111;
-      --ink-mid:   #444444;
-      --ink-faint: #888888;
-      --rule:      #d0c8b8;
-      --bg:        #f5f1ea;
-      --card-bg:   #faf8f4;
-      --accent:    #b5202a;
-      --chip-bg:   #e8e2d8;
-      --chip-hover:#d0c8b8;
-      --sans:      'Georgia', 'Times New Roman', Times, serif;
-      --ui:        system-ui, -apple-system, sans-serif;
-    }
-
-    html { font-size: 16px; }
-
-    body {
-      background: var(--bg);
-      color: var(--ink);
-      font-family: var(--sans);
-      line-height: 1.6;
-      min-height: 100vh;
-    }
-
-    /* ── Masthead ───────────────────────────────────────────────────── */
-    .masthead {
-      border-bottom: 3px double var(--ink);
-      padding: 1.25rem 0 0.75rem;
-      text-align: center;
-      background: var(--bg);
-    }
-
-    .masthead-eyebrow {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-faint);
-      margin-bottom: 0.25rem;
-    }
-
-    .masthead-title {
-      font-size: clamp(2.2rem, 6vw, 3.8rem);
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      color: var(--ink);
-    }
-
-    .masthead-title span { color: var(--accent); }
-
-    .masthead-meta {
-      font-family: var(--ui);
-      font-size: 0.72rem;
-      color: var(--ink-faint);
-      margin-top: 0.5rem;
-      letter-spacing: 0.04em;
-    }
-
-    /* Edition toggle */
-    .edition-bar {
-      border-top: 1px solid var(--rule);
-      border-bottom: 1px solid var(--rule);
-      margin-top: 0.75rem;
-      padding: 0.4rem 1rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      color: var(--ink-mid);
-    }
-
-    .edition-btn {
-      background: none;
-      border: 1px solid transparent;
-      border-radius: 2px;
-      padding: 0.2rem 0.6rem;
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      color: var(--ink-faint);
-      transition: all 0.15s;
-    }
-
-    .edition-btn.active {
-      border-color: var(--ink);
-      color: var(--ink);
-      background: var(--chip-bg);
-    }
-
-    .edition-sep { color: var(--rule); }
-
-    /* ── Layout ─────────────────────────────────────────────────────── */
-    .container {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 0 1.25rem;
-    }
-
-    /* ── Section headers ────────────────────────────────────────────── */
-    .section-header {
-      display: flex;
-      align-items: baseline;
-      gap: 0.75rem;
-      padding: 1.25rem 0 0.5rem;
-      border-bottom: 2px solid var(--ink);
-      margin-bottom: 0;
-    }
-
-    .section-label {
-      font-family: var(--ui);
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-
-    .section-rule {
-      flex: 1;
-      height: 1px;
-      background: var(--rule);
-    }
-
-    /* ── Story cards ────────────────────────────────────────────────── */
-    .story-card {
-      border-bottom: 1px solid var(--rule);
-      padding: 1.2rem 0 1.1rem;
-    }
-
-    .story-card:last-child { border-bottom: none; }
-
-    .story-headline {
-      font-size: 1.25rem;
-      font-weight: 700;
-      line-height: 1.3;
-      color: var(--ink);
-      margin-bottom: 0.55rem;
-      letter-spacing: -0.01em;
-    }
-
-    .story-headline a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .story-headline a:hover { color: var(--accent); }
-
-    .story-summary {
-      font-size: 0.95rem;
-      line-height: 1.65;
-      color: var(--ink-mid);
-      margin-bottom: 0.75rem;
-    }
-
-    /* Source chips */
-    .story-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      align-items: center;
-    }
-
-    .chip {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      padding: 0.18rem 0.5rem;
-      border-radius: 2px;
-      background: var(--chip-bg);
-      color: var(--ink-mid);
-      text-decoration: none;
-      border: 1px solid transparent;
-      transition: background 0.12s, border-color 0.12s;
-      white-space: nowrap;
-    }
-
-    .chip:hover {
-      background: var(--chip-hover);
-      border-color: var(--rule);
-      color: var(--ink);
-    }
-
-    .chip.paywalled {
-      opacity: 0.5;
-      cursor: default;
-      pointer-events: none;
-    }
-
-    /* Free source with no confirmed URL — show as plain unlinked chip (no lock) */
-    .chip.unlinked {
-      cursor: default;
-      pointer-events: none;
-    }
-
-    .chip-pos {
-      color: var(--ink-faint);
-      font-weight: 400;
-    }
-
-    /* ── Publication time ───────────────────────────────────────────── */
-    .story-time {
-      display: block;
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      color: var(--ink-faint);
-      font-style: italic;
-      letter-spacing: 0.02em;
-      margin-bottom: 0.5rem;
-    }
-
-    /* ── Loading / error states ─────────────────────────────────────── */
-    .state-box {
-      text-align: center;
-      padding: 4rem 1rem;
-      font-family: var(--ui);
-      color: var(--ink-faint);
-    }
-
-    .state-box .spinner {
-      width: 28px; height: 28px;
-      border: 2px solid var(--rule);
-      border-top-color: var(--ink);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 1rem;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .state-box h2 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--ink-mid);
-      margin-bottom: 0.35rem;
-    }
-
-    .state-box p { font-size: 0.85rem; }
-
-    /* ── No-update notice (local section, evening edition) ─────────── */
-    .no-update-local {
-      font-family: var(--ui);
-      font-size: 0.85rem;
-      color: var(--ink-faint);
-      font-style: italic;
-      padding: 1rem 0 1.25rem;
-      border-bottom: 1px solid var(--rule);
-    }
-
-    /* ── Breaking badge ─────────────────────────────────────────────── */
-    .breaking-badge {
-      font-family: var(--ui);
-      font-size: 0.6rem;
-      font-weight: 800;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
-      color: #fff;
-      background: var(--accent);
-      padding: 0.13rem 0.38rem;
-      border-radius: 2px;
-      vertical-align: middle;
-      margin-right: 0.35rem;
-      display: inline-block;
-      line-height: 1.6;
-    }
-
-    /* ── Learn more link ────────────────────────────────────────────── */
-    .learn-more-link {
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--accent);
-      text-decoration: none;
-      letter-spacing: 0.02em;
-    }
-
-    .learn-more-link:hover { text-decoration: underline; }
-
-    /* ── Story footer: learn-more + per-story copy icon ─────────────── */
-    .story-footer {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-top: 0.55rem;
-    }
-
-    .story-copy-btn {
-      display: inline-flex;
-      align-items: center;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--ink-faint);
-      padding: 0;
-      transition: color 0.15s;
-      line-height: 1;
-    }
-
-    .story-copy-btn:hover  { color: var(--ink); }
-    .story-copy-btn.copied { color: #2a7a2a; }
-
-    /* ── Footer ─────────────────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--rule);
-      margin-top: 2rem;
-      padding: 1.25rem 0;
-      text-align: center;
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      color: var(--ink-faint);
-      letter-spacing: 0.04em;
-    }
-
-    footer a { color: inherit; }
-
-    /* ── Responsive ─────────────────────────────────────────────────── */
-    @media (max-width: 520px) {
-      .story-headline { font-size: 1.1rem; }
-      .story-summary  { font-size: 0.9rem; }
-    }
-  </style>
-</head>
-<body>
-
-<!-- ── Masthead ──────────────────────────────────────────────────────── -->
-<header class="masthead">
-  <div class="container">
-    <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
-    <h1 class="masthead-title">Daily <span>Pulse</span></h1>
-    <p class="masthead-meta" id="meta-line">Loading…</p>
-    <div class="edition-bar">
-      <button class="edition-btn" id="btn-morning" onclick="setEdition('morning')">☀︎ Morning</button>
-      <span class="edition-sep">|</span>
-      <button class="edition-btn" id="btn-evening" onclick="setEdition('evening')">◑ Evening</button>
-    </div>
-  </div>
-</header>
-
-<!-- ── Main content ──────────────────────────────────────────────────── -->
-<main class="container" id="main-content">
-  <div class="state-box">
-    <div class="spinner"></div>
-    <h2>Fetching today's digest…</h2>
-    <p>Pulling the latest headlines from across Hong Kong and the world.</p>
-  </div>
-</main>
-
-<footer class="container">
-  <p>Daily Pulse aggregates public headlines from AP, BBC, The Guardian, CNBC, RTHK, HKFP &amp; The Standard.
-  Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
-</footer>
-
-<script>
-  // ── Edition detection ──────────────────────────────────────────────
-  // Morning = 05:00–16:59 HKT   Evening = 17:00–04:59 HKT
-  function detectEdition() {
-    const hkt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
-    const h = hkt.getHours();
-    return (h >= 5 && h < 17) ? 'morning' : 'evening';
-  }
-
-  let currentEdition = detectEdition();
-  let currentDigestData = null; // stored on load so copySection can access stories
-
-  function setEdition(ed) {
-    currentEdition = ed;
-    document.getElementById('btn-morning').classList.toggle('active', ed === 'morning');
-    document.getElementById('btn-evening').classList.toggle('active', ed === 'evening');
-    document.getElementById('api-link').href = `/api/digest?type=${ed}`;
-    loadDigest(ed);
-  }
-
-  // ── Formatting helpers ─────────────────────────────────────────────
-  function fmtDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  }
-
-  // Format publication time compactly: "3:15 pm · 12 Apr"
-  function fmtPublished(iso) {
-    if (!iso) return null;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
-      hour: '2-digit', minute: '2-digit',
-    });
-    const date = d.toLocaleString('en-HK', {
-      timeZone: 'Asia/Hong_Kong',
-      day: 'numeric', month: 'short',
-    });
-    return `${time} · ${date}`;
-  }
-
-  function editionLabel(type) {
-    return type === 'morning' ? '☀︎ Morning Edition' : '◑ Evening Edition';
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────
-  function renderChips(sources) {
-    return sources.map(s => {
-      if (s.paywalled) {
-        // Paywalled source: greyed out, no link, lock icon
-        return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
-      }
-      if (!s.url) {
-        // Free source but no confirmed article URL — plain unlinked chip, no lock
-        return `<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`;
-      }
-      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`;
-    }).join('');
-  }
-
-  // Safely encode a value for use inside an HTML attribute (double-quoted).
-  function escAttr(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  function renderCluster(c, tag) {
-    const badge    = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
-    const headline = c.readUrl
-      ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
-      : `${badge}${c.headline}`;
-    const pubTime  = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
-
-    // "Learn more →" visible link + clipboard copy icon, displayed together below the summary
-    const learnMoreHtml = c.learnMoreUrl
-      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">Learn more →</a>`
-      : '';
-
-    // Copy button — data attributes hold the values used to build the pasted text
-    // (copied text uses "(link)" format + #tag for note-taking apps)
-    const copyBtn = `<button class="story-copy-btn"
-      data-headline="${escAttr(c.headline)}"
-      data-summary="${escAttr(c.summary || '')}"
-      data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}"
-      data-tag="${escAttr(tag || '')}"
-      onclick="copyStory(this)"
-      title="Copy story">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/>
-      </svg>
-    </button>`;
-
-    const footer = (learnMoreHtml || copyBtn)
-      ? `<div class="story-footer">${learnMoreHtml}${copyBtn}</div>`
-      : '';
-
-    return `
-      <article class="story-card">
-        <h2 class="story-headline">${headline}</h2>
-        ${timeHtml}
-        <p class="story-summary">${c.summary || ''}</p>
-        <div class="story-chips">${renderChips(c.sources)}</div>
-        ${footer}
-      </article>`;
-  }
-
-  function renderSection(label, clusters, tag) {
-    if (!clusters || clusters.length === 0) return '';
-    return `
-      <div class="section-header">
-        <span class="section-label">${label}</span>
-        <span class="section-rule"></span>
-      </div>
-      ${clusters.map(c => renderCluster(c, tag)).join('')}`;
-  }
-
-  // ── Copy-to-clipboard (per story) ─────────────────────────────────
-  // Copies a single story in Markdown-friendly format:
-  //   Headline
-  //   Summary [(link)](url) #tag
-  function copyStory(btn) {
-    const headline = btn.dataset.headline || '';
-    const summary  = btn.dataset.summary  || '';
-    const url      = btn.dataset.url      || '';
-    const tag      = btn.dataset.tag      || '';
-
-    const linkPart = url ? ` [(link)](${url})` : '';
-    const tagPart  = tag ? ` #${tag}` : '';
-    const text = `${summary}${linkPart}${tagPart}`;
-
-    const finish = () => {
-      btn.classList.add('copied');
-      const origTitle = btn.title;
-      btn.title = 'Copied!';
-      setTimeout(() => { btn.classList.remove('copied'); btn.title = origTitle; }, 2000);
-    };
-
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
-    } else {
-      fallbackCopy(text, finish);
-    }
-  }
-
-  function fallbackCopy(text, cb) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); cb(); } catch {}
-    document.body.removeChild(ta);
-  }
-
-  function renderDigest(data) {
-    // Evening "no update" state
-    if (data.noUpdate) {
-      const sinceTime = data.morningGeneratedAt
-        ? ` since the Morning Edition (${fmtDate(data.morningGeneratedAt)})`
-        : '';
-      return `<div class="state-box">
-        <h2>No new stories</h2>
-        <p>No significant updates${sinceTime}. Check back later this evening.</p>
-      </div>`;
-    }
-
-    const intl = renderSection('International', data.international, 'international');
-
-    // Evening edition: show notice when intl has new stories but local has none
-    let local;
-    if (data.localNoUpdate) {
-      local = `
-        <div class="section-header">
-          <span class="section-label">Hong Kong</span>
-          <span class="section-rule"></span>
-        </div>
-        <p class="no-update-local">No new Hong Kong stories since the Morning Edition.</p>`;
-    } else {
-      local = renderSection('Hong Kong', data.local, 'local');
-    }
-
-    if (!intl && !local) {
-      return `<div class="state-box"><h2>No stories yet</h2>
-        <p>The digest hasn't been generated yet. Check back after the next scheduled run.</p></div>`;
-    }
-
-    return intl + local;
-  }
-
-  // ── Fetch ──────────────────────────────────────────────────────────
-  async function loadDigest(edition) {
-    const main = document.getElementById('main-content');
-    const meta = document.getElementById('meta-line');
-
-    main.innerHTML = `<div class="state-box">
-      <div class="spinner"></div>
-      <h2>Fetching ${edition} digest…</h2>
-      <p>This usually takes a second.</p>
-    </div>`;
+// ── Adapter dispatcher ────────────────────────────────────────────────────────
+// Routes each source to its specific adapter, or returns a stub result for
+// sources whose adapters are not yet implemented.
+
+import { getActiveSources } from '../sourceRegistry.js';
+import { validateItems, checkDrift } from '../validate.js';
+
+// Phase 1 — implemented
+import { run as runReuters }      from './reuters.js';
+import { run as runAp }           from './ap.js';
+import { run as runBbc }          from './bbc.js';
+import { run as runGuardian }     from './guardian.js';
+import { run as runCnbc }         from './cnbc.js';
+import { run as runRthk }         from './rthk.js';
+import { run as runHkfp }         from './hkfp.js';
+import { run as runTheStandard }  from './thestandard.js';
+
+// Phase 2 — international
+import { run as runAlJazeera }    from './aljazeera.js';
+import { run as runCnn }          from './cnn.js';
+import { run as runNbcNews }      from './nbcnews.js';
+import { run as runCbsNews }      from './cbsnews.js';
+import { run as runDw }           from './dw.js';
+import { run as runFrance24 }     from './france24.js';
+import { run as runFoxNews }      from './foxnews.js';
+import { run as runFoxBusiness }  from './foxbusiness.js';
+
+// Phase 2 — HK local
+import { run as runTvbPearl }     from './tvbpearl.js';
+
+// Phase 3 — HK local
+import { run as runScmp }         from './scmp.js';
+
+const ADAPTERS = {
+  // Phase 1
+  reuters:      runReuters,
+  ap:           runAp,
+  bbc:          runBbc,
+  guardian:     runGuardian,
+  cnbc:         runCnbc,
+  rthk:         runRthk,
+  hkfp:         runHkfp,
+  thestandard:  runTheStandard,
+  // Phase 2
+  aljazeera:    runAlJazeera,
+  cnn:          runCnn,
+  nbcnews:      runNbcNews,
+  cbsnews:      runCbsNews,
+  dw:           runDw,
+  france24:     runFrance24,
+  foxnews:      runFoxNews,
+  foxbusiness:  runFoxBusiness,
+  // Phase 2 — HK local
+  tvbpearl:     runTvbPearl,
+  // Phase 3
+  scmp:         runScmp,
+};
+
+/** Stub result for sources without an implemented adapter. */
+function stubResult(source) {
+  return {
+    sourceId:          source.id,
+    label:             source.label,
+    bucket:            source.bucket,
+    isPaywalled:       source.isPaywalled,
+    presenceConfirmed: false,
+    rankConfirmed:     false,
+    rankMethod:        'stub',
+    items:             [],
+    scrapeConfidence:  'none',
+    matchConfidence:   'none',
+    error:             'adapter not yet implemented',
+  };
+}
+
+/**
+ * Run all active source adapters in parallel.
+ * Returns an array of standardised adapter results.
+ * Uses Promise.allSettled so one failure never blocks others.
+ */
+export async function runAllAdapters() {
+  const sources = getActiveSources();
+
+  const tasks = sources.map(async (source) => {
+    // Return stub immediately for unimplemented sources
+    const adapterFn = ADAPTERS[source.id];
+    if (!adapterFn) return stubResult(source);
 
     try {
-      const res = await fetch(`/api/digest?type=${edition}`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
-      const data = await res.json();
-      currentDigestData = data; // make available to copySection
+      const result = await adapterFn(source);
 
-      meta.textContent = `${editionLabel(data.type)} · ${fmtDate(data.generatedAt)}`;
-      main.innerHTML = renderDigest(data);
+      // Validate the returned items
+      const domainHint = new URL(source.entryUrl).hostname.replace('www.', '');
+      const { scrapeConfidence, warnings } = validateItems(source.id, result.items, domainHint);
+      if (warnings.length) console.warn(`[${source.id}] validation warnings:`, warnings);
+
+      // Drift detection (non-blocking — fire and forget)
+      checkDrift(source.id, result.items).then(drifted => {
+        if (drifted) console.warn(`[${source.id}] DRIFT DETECTED — selectors may need update`);
+      }).catch(() => {});
+
+      return {
+        ...result,
+        label:       source.label,
+        bucket:      source.bucket,
+        isPaywalled: source.isPaywalled,
+        rssUrl:      source.rssUrl,
+        scrapeConfidence,
+        warnings,
+      };
     } catch (err) {
-      meta.textContent = 'Could not load digest';
-      main.innerHTML = `<div class="state-box">
-        <h2>Something went wrong</h2>
-        <p>${err.message}</p>
-        <p style="margin-top:0.5rem">Try refreshing, or check back in a few minutes.</p>
-      </div>`;
+      console.error(`[${source.id}] adapter threw:`, err.message);
+      return {
+        ...stubResult(source),
+        scrapeConfidence: 'none',
+        error: err.message,
+      };
     }
-  }
+  });
 
-  // ── Boot ───────────────────────────────────────────────────────────
-  setEdition(currentEdition);
-</script>
-</body>
-</html>
+  const settled = await Promise.allSettled(tasks);
+  return settled.map(r => r.status === 'fulfilled' ? r.value : {
+    sourceId: 'unknown', scrapeConfidence: 'none', items: [], error: r.reason?.message,
+  });
+}
