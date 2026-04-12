@@ -159,18 +159,27 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
 }
 
 /**
- * Return true when more than half of the cluster's members published
- * within the past 4 hours — indicating a breaking story.
+ * Return true when more sources published within the past 4 hours than
+ * outside it — i.e. the majority of dated sources are fresh.
+ *
+ * Only members with a known publishedAt are used for the comparison.
+ * Members where publishedAt is null (DOM-only scrape, no RSS match) are
+ * excluded from both counts so they don't artificially depress the ratio.
  */
 function computeIsBreaking(members) {
   if (!members?.length) return false;
-  const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
-  const recentCount  = members.filter(m => {
+  const fourHoursAgo  = Date.now() - 4 * 60 * 60 * 1000;
+  const datedMembers  = members.filter(m => {
     if (!m.publishedAt) return false;
     const t = new Date(m.publishedAt).getTime();
-    return !isNaN(t) && t >= fourHoursAgo;
-  }).length;
-  return recentCount > members.length / 2;
+    return !isNaN(t);
+  });
+  if (!datedMembers.length) return false; // no dates known — cannot determine
+  const recentCount   = datedMembers.filter(
+    m => new Date(m.publishedAt).getTime() >= fourHoursAgo
+  ).length;
+  const notRecentCount = datedMembers.length - recentCount;
+  return recentCount > notRecentCount; // more fresh sources than stale ones
 }
 
 /**
