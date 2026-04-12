@@ -68,43 +68,6 @@
       letter-spacing: 0.04em;
     }
 
-    /* Edition toggle */
-    .edition-bar {
-      border-top: 1px solid var(--rule);
-      border-bottom: 1px solid var(--rule);
-      margin-top: 0.75rem;
-      padding: 0.4rem 1rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      color: var(--ink-mid);
-    }
-
-    .edition-btn {
-      background: none;
-      border: 1px solid transparent;
-      border-radius: 2px;
-      padding: 0.2rem 0.6rem;
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      color: var(--ink-faint);
-      transition: all 0.15s;
-    }
-
-    .edition-btn.active {
-      border-color: var(--ink);
-      color: var(--ink);
-      background: var(--chip-bg);
-    }
-
-    .edition-sep { color: var(--rule); }
 
     /* ── Layout ─────────────────────────────────────────────────────── */
     .container {
@@ -254,14 +217,21 @@
 
     .state-box p { font-size: 0.85rem; }
 
-    /* ── No-update notice (local section, evening edition) ─────────── */
-    .no-update-local {
+    /* ── New badge ──────────────────────────────────────────────────── */
+    .new-badge {
       font-family: var(--ui);
-      font-size: 0.85rem;
-      color: var(--ink-faint);
-      font-style: italic;
-      padding: 1rem 0 1.25rem;
-      border-bottom: 1px solid var(--rule);
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #fff;
+      background: #2a9d8f;
+      padding: 0.13rem 0.38rem;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+      display: inline-block;
+      line-height: 1.6;
     }
 
     /* ── Breaking badge ─────────────────────────────────────────────── */
@@ -345,11 +315,6 @@
     <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-meta" id="meta-line">Loading…</p>
-    <div class="edition-bar">
-      <button class="edition-btn" id="btn-morning" onclick="setEdition('morning')">☀︎ Morning</button>
-      <span class="edition-sep">|</span>
-      <button class="edition-btn" id="btn-evening" onclick="setEdition('evening')">◑ Evening</button>
-    </div>
   </div>
 </header>
 
@@ -368,23 +333,34 @@
 </footer>
 
 <script>
-  // ── Edition detection ──────────────────────────────────────────────
-  // Morning = 05:00–16:59 HKT   Evening = 17:00–04:59 HKT
-  function detectEdition() {
-    const hkt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
-    const h = hkt.getHours();
-    return (h >= 5 && h < 17) ? 'morning' : 'evening';
-  }
-
-  let currentEdition = detectEdition();
   let currentDigestData = null; // stored on load so copySection can access stories
 
-  function setEdition(ed) {
-    currentEdition = ed;
-    document.getElementById('btn-morning').classList.toggle('active', ed === 'morning');
-    document.getElementById('btn-evening').classList.toggle('active', ed === 'evening');
-    document.getElementById('api-link').href = `/api/digest?type=${ed}`;
-    loadDigest(ed);
+  // ── "New" story tracking via localStorage ─────────────────────────
+  // Headlines are stored with a timestamp so entries older than 36 hours
+  // are pruned automatically (matching the digest's rolling window).
+  const SEEN_TTL_MS = 36 * 60 * 60 * 1000;
+
+  function getSeenHeadlines() {
+    try {
+      const raw = JSON.parse(localStorage.getItem('dp_seen') || '{}');
+      const cutoff = Date.now() - SEEN_TTL_MS;
+      const pruned = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (v > cutoff) pruned[k] = v;
+      }
+      return pruned; // { headline: firstSeenTimestamp }
+    } catch { return {}; }
+  }
+
+  function markHeadlinesSeen(headlines) {
+    try {
+      const seen = getSeenHeadlines();
+      const now  = Date.now();
+      for (const h of headlines) {
+        if (!seen[h]) seen[h] = now;
+      }
+      localStorage.setItem('dp_seen', JSON.stringify(seen));
+    } catch {}
   }
 
   // ── Formatting helpers ─────────────────────────────────────────────
@@ -413,10 +389,6 @@
     return `${time} · ${date}`;
   }
 
-  function editionLabel(type) {
-    return type === 'morning' ? '☀︎ Morning Edition' : '◑ Evening Edition';
-  }
-
   // ── Render ─────────────────────────────────────────────────────────
   function renderChips(sources) {
     return sources.map(s => {
@@ -441,8 +413,10 @@
       .replace(/>/g, '&gt;');
   }
 
-  function renderCluster(c, tag) {
-    const badge    = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
+  function renderCluster(c, tag, isNew) {
+    const breakingBadge = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
+    const newBadge      = isNew        ? '<span class="new-badge">New</span>'           : '';
+    const badge = breakingBadge || newBadge;
     const headline = c.readUrl
       ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
       : `${badge}${c.headline}`;
@@ -482,14 +456,14 @@
       </article>`;
   }
 
-  function renderSection(label, clusters, tag) {
+  function renderSection(label, clusters, tag, seenSet) {
     if (!clusters || clusters.length === 0) return '';
     return `
       <div class="section-header">
         <span class="section-label">${label}</span>
         <span class="section-rule"></span>
       </div>
-      ${clusters.map(c => renderCluster(c, tag)).join('')}`;
+      ${clusters.map(c => renderCluster(c, tag, !seenSet.has(c.headline))).join('')}`;
   }
 
   // ── Copy-to-clipboard (per story) ─────────────────────────────────
@@ -531,58 +505,48 @@
   }
 
   function renderDigest(data) {
-    // Evening "no update" state
-    if (data.noUpdate) {
-      const sinceTime = data.morningGeneratedAt
-        ? ` since the Morning Edition (${fmtDate(data.morningGeneratedAt)})`
-        : '';
-      return `<div class="state-box">
-        <h2>No new stories</h2>
-        <p>No significant updates${sinceTime}. Check back later this evening.</p>
-      </div>`;
-    }
+    // Load seen headlines BEFORE rendering so badges reflect prior visits
+    const seenMap  = getSeenHeadlines();
+    const seenSet  = new Set(Object.keys(seenMap));
 
-    const intl = renderSection('International', data.international, 'international');
-
-    // Evening edition: show notice when intl has new stories but local has none
-    let local;
-    if (data.localNoUpdate) {
-      local = `
-        <div class="section-header">
-          <span class="section-label">Hong Kong</span>
-          <span class="section-rule"></span>
-        </div>
-        <p class="no-update-local">No new Hong Kong stories since the Morning Edition.</p>`;
-    } else {
-      local = renderSection('Hong Kong', data.local, 'local');
-    }
+    const intl  = renderSection('International', data.international, 'international', seenSet);
+    const local = renderSection('Hong Kong',     data.local,         'local',         seenSet);
 
     if (!intl && !local) {
       return `<div class="state-box"><h2>No stories yet</h2>
-        <p>The digest hasn't been generated yet. Check back after the next scheduled run.</p></div>`;
+        <p>The digest is being generated. Check back in a moment.</p></div>`;
     }
+
+    // Mark all displayed headlines as seen AFTER rendering
+    const allHeadlines = [
+      ...(data.international || []),
+      ...(data.local         || []),
+    ].map(s => s.headline);
+    markHeadlinesSeen(allHeadlines);
 
     return intl + local;
   }
 
   // ── Fetch ──────────────────────────────────────────────────────────
-  async function loadDigest(edition) {
+  async function loadDigest() {
     const main = document.getElementById('main-content');
     const meta = document.getElementById('meta-line');
 
     main.innerHTML = `<div class="state-box">
       <div class="spinner"></div>
-      <h2>Fetching ${edition} digest…</h2>
+      <h2>Fetching the latest digest…</h2>
       <p>This usually takes a second.</p>
     </div>`;
 
     try {
-      const res = await fetch(`/api/digest?type=${edition}`);
+      const res = await fetch('/api/digest');
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
-      currentDigestData = data; // make available to copySection
+      currentDigestData = data;
 
-      meta.textContent = `${editionLabel(data.type)} · ${fmtDate(data.generatedAt)}`;
+      const dateStr = fmtDate(data.generatedAt);
+      meta.textContent = `Updated ${dateStr}`;
+      document.getElementById('api-link').href = '/api/digest';
       main.innerHTML = renderDigest(data);
     } catch (err) {
       meta.textContent = 'Could not load digest';
@@ -595,7 +559,7 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────
-  setEdition(currentEdition);
+  loadDigest();
 </script>
 </body>
 </html>
