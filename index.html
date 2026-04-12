@@ -281,47 +281,42 @@
       line-height: 1.6;
     }
 
-    /* ── Learn more link ────────────────────────────────────────────── */
-    .learn-more-link {
-      display: inline-block;
-      margin-top: 0.55rem;
+    /* ── Story inline meta: (link), #tag, copy icon ────────────────── */
+    .story-link {
       font-family: var(--ui);
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       font-weight: 600;
       color: var(--accent);
       text-decoration: none;
-      letter-spacing: 0.02em;
+      margin-left: 0.3em;
     }
 
-    .learn-more-link:hover { text-decoration: underline; }
+    .story-link:hover { text-decoration: underline; }
 
-    /* ── Section copy button ────────────────────────────────────────── */
-    .copy-btn {
+    .story-tag {
       font-family: var(--ui);
-      font-size: 0.62rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 0.75rem;
+      color: var(--ink-faint);
+      margin-left: 0.35em;
+      letter-spacing: 0.01em;
+    }
+
+    .story-copy-btn {
+      display: inline-flex;
+      align-items: center;
       background: none;
-      border: 1px solid var(--rule);
-      border-radius: 2px;
-      padding: 0.18rem 0.55rem;
+      border: none;
       cursor: pointer;
       color: var(--ink-faint);
-      transition: all 0.15s;
-      flex-shrink: 0;
+      padding: 0 0.15em;
+      margin-left: 0.2em;
+      vertical-align: middle;
+      transition: color 0.15s;
+      line-height: 1;
     }
 
-    .copy-btn:hover {
-      border-color: var(--ink-mid);
-      color: var(--ink);
-      background: var(--chip-bg);
-    }
-
-    .copy-btn.copied {
-      color: #2a7a2a;
-      border-color: #2a7a2a;
-    }
+    .story-copy-btn:hover  { color: var(--ink); }
+    .story-copy-btn.copied { color: #2a7a2a; }
 
     /* ── Footer ─────────────────────────────────────────────────────── */
     footer {
@@ -439,73 +434,79 @@
     }).join('');
   }
 
-  function renderCluster(c) {
+  // Safely encode a value for use inside an HTML attribute (double-quoted).
+  function escAttr(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function renderCluster(c, tag) {
     const badge    = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
-    const headText = `${badge}${c.headline}`;
     const headline = c.readUrl
       ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
-      : headText;
-    const pubTime   = fmtPublished(c.publishedAt);
-    const timeHtml  = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
-    const learnMore = c.learnMoreUrl
-      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">Learn more →</a>`
+      : `${badge}${c.headline}`;
+    const pubTime  = fmtPublished(c.publishedAt);
+    const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
+
+    // Inline (link), #tag, and copy icon — all appended inside the summary <p>
+    const linkHtml = c.learnMoreUrl
+      ? ` <a class="story-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">(link)</a>`
       : '';
+    const tagHtml  = tag ? ` <span class="story-tag">#${tag}</span>` : '';
+
+    const copyBtn  = `<button class="story-copy-btn"
+      data-headline="${escAttr(c.headline)}"
+      data-summary="${escAttr(c.summary || '')}"
+      data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}"
+      data-tag="${escAttr(tag || '')}"
+      onclick="copyStory(this)"
+      title="Copy story">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/>
+      </svg>
+    </button>`;
+
     return `
       <article class="story-card">
         <h2 class="story-headline">${headline}</h2>
         ${timeHtml}
-        <p class="story-summary">${c.summary}</p>
+        <p class="story-summary">${c.summary || ''}${linkHtml}${tagHtml} ${copyBtn}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
-        ${learnMore}
       </article>`;
   }
 
   function renderSection(label, clusters, tag) {
     if (!clusters || clusters.length === 0) return '';
-    const copyBtn = tag
-      ? `<button class="copy-btn" onclick="copySection('${tag}', this)">Copy</button>`
-      : '';
     return `
       <div class="section-header">
         <span class="section-label">${label}</span>
         <span class="section-rule"></span>
-        ${copyBtn}
       </div>
-      ${clusters.map(renderCluster).join('')}`;
+      ${clusters.map(c => renderCluster(c, tag)).join('')}`;
   }
 
-  // ── Copy-to-clipboard ──────────────────────────────────────────────
-  // Builds plain Markdown-compatible text for a section's stories,
-  // suitable for pasting into Capacities, Notion, Obsidian, etc.
-  //
-  // Format per story:
-  //   [Headline]
-  //   [Summary]
-  //   [Learn more](url)
-  //   #tag
-  function buildSectionText(clusters, tag) {
-    return clusters.map(c => {
-      const url  = c.learnMoreUrl || c.readUrl || '';
-      const link = url ? `[Learn more](${url})` : '';
-      return [c.headline, c.summary, link, `#${tag}`]
-        .filter(Boolean)
-        .join('\n');
-    }).join('\n\n');
-  }
+  // ── Copy-to-clipboard (per story) ─────────────────────────────────
+  // Copies a single story in Markdown-friendly format:
+  //   Headline
+  //   Summary [(link)](url) #tag
+  function copyStory(btn) {
+    const headline = btn.dataset.headline || '';
+    const summary  = btn.dataset.summary  || '';
+    const url      = btn.dataset.url      || '';
+    const tag      = btn.dataset.tag      || '';
 
-  function copySection(tag, btn) {
-    if (!currentDigestData) return;
-    const clusters = tag === 'international'
-      ? (currentDigestData.international || [])
-      : (currentDigestData.local || []);
-    if (!clusters.length) return;
-
-    const text = buildSectionText(clusters, tag);
+    const linkPart = url ? ` [(link)](${url})` : '';
+    const tagPart  = tag ? ` #${tag}` : '';
+    const text = `${headline}\n${summary}${linkPart}${tagPart}`;
 
     const finish = () => {
-      btn.textContent = 'Copied!';
       btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      const origTitle = btn.title;
+      btn.title = 'Copied!';
+      setTimeout(() => { btn.classList.remove('copied'); btn.title = origTitle; }, 2000);
     };
 
     if (navigator.clipboard?.writeText) {
