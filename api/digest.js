@@ -303,7 +303,7 @@ function formatStories(clusters) {
     return {
       id:           c.id,
       headline:     decodeEntities(c.headline),
-      summary:      c.summary ?? null, // null → frontend omits paragraph, never repeats headline
+      summary:      c.summary,
       readUrl:      pickStoryUrl(c),
       learnMoreUrl: c._learnMoreUrl ?? pickLearnMoreUrl(c), // reuse pre-fetched URL
       isBreaking:   computeIsBreaking(c.members),
@@ -393,9 +393,38 @@ export default async function handler(req, res) {
     });
     console.log(`[digest] ${filtered.length} cluster(s) after editorial + staleness filter (${editFiltered.length - filtered.length} stale removed)`);
 
-    // Re-split by bucket (preserved on each cluster object)
-    const filteredIntl  = filtered.filter(c => c.bucket === 'international');
-    const filteredLocal = filtered.filter(c => c.bucket === 'local');
+    // Re-split by bucket (preserved on each cluster object).
+    //
+    // Safety net: if the editorial filter merged every local cluster into an
+    // international one (merged clusters inherit parts[0].bucket, which is
+    // always 'international' because allClusters = [...intl, ...local]), the
+    // local bucket ends up empty.  When that happens, fall back to the raw
+    // scored local clusters from the scraper — staleness-filtered so we don't
+    // surface old articles, but not editorially filtered (keeps genuine local
+    // news that was accidentally absorbed into international merges).
+    let filteredIntl  = filtered.filter(c => c.bucket === 'international');
+    let filteredLocal = filtered.filter(c => c.bucket === 'local');
+
+    if (filteredIntl.length === 0 && (scraped.international ?? []).length > 0) {
+      console.warn('[digest] filteredIntl empty after editorial — using raw scraped international');
+      filteredIntl = (scraped.international ?? []).filter(c => {
+        const withDates = (c.members ?? []).filter(
+          m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime())
+        );
+        if (!withDates.length) return true;
+        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_CUTOFF_MS;
+      });
+    }
+    if (filteredLocal.length === 0 && (scraped.local ?? []).length > 0) {
+      console.warn('[digest] filteredLocal empty after editorial — using raw scraped local');
+      filteredLocal = (scraped.local ?? []).filter(c => {
+        const withDates = (c.members ?? []).filter(
+          m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime())
+        );
+        if (!withDates.length) return true;
+        return (nowMs - Math.max(...withDates.map(m => new Date(m.publishedAt).getTime()))) <= STALE_CUTOFF_MS;
+      });
+    }
 
     // ── 5. Enrich clusters with article content ─────────────────────────────
     // Fetch the lead article for each cluster in parallel (best-effort: silent
@@ -457,9 +486,23 @@ export default async function handler(req, res) {
         if (finalIntl.length === 0 && finalLocal.length === 0) {
           noUpdate = true;
           console.log('[digest] Evening: no new stories vs morning — returning noUpdate');
-        } else if (finalLocal.length === 0 && finalIntl.length > 0) {
-          localNoUpdate = true;
-          console.log('[digest] Evening: no new local stories vs morning');
+        } else {
+          // Per-section safety net for evening: if one section is empty but
+          // stories exist (editorial fallback fired), show top-ranked rather
+          // than leaving the section blank.
+          if (finalIntl.length === 0 && summarisedIntl.length > 0) {
+            console.warn('[digest] Evening: intl empty after dedup — falling back to top-ranked intl');
+            finalIntl = summarisedIntl.slice(0, counts.intl);
+          }
+          if (finalLocal.length === 0) {
+            if (summarisedLocal.length > 0) {
+              console.warn('[digest] Evening: local empty after dedup — falling back to top-ranked local');
+              finalLocal = summarisedLocal.slice(0, counts.local);
+            } else if (finalIntl.length > 0) {
+              localNoUpdate = true;
+              console.log('[digest] Evening: no new local stories vs morning');
+            }
+          }
         }
       } else {
         // Evening ran first: show top-ranked stories normally
@@ -482,15 +525,19 @@ export default async function handler(req, res) {
         finalIntl  = notInOtherDigest(summarisedIntl,  eveningStories).slice(0, counts.intl);
         finalLocal = notInOtherDigest(summarisedLocal, eveningStories).slice(0, counts.local);
 
-        // Safety net: if somehow everything overlaps, fall back to top-ranked
-        // (morning is never blank)
-        if (finalIntl.length === 0 && finalLocal.length === 0) {
-          console.warn('[digest] Morning: all stories already in evening — falling back to top-ranked');
-          finalIntl  = summarisedIntl.slice(0, counts.intl);
-          finalLocal = summarisedLocal.slice(0, counts.local);
-        } else {
-          console.log(`[digest] Morning after evening: ${finalIntl.length} intl, ${finalLocal.length} local (skipped ${eveningStories.length} evening stories)`);
+        // Per-section safety net: if cross-edition dedup wiped a section,
+        // fall back to top-ranked for that section individually.
+        // (Morning is never blank — we go deeper in the ranked list rather
+        // than showing nothing.)
+        if (finalIntl.length === 0 && summarisedIntl.length > 0) {
+          console.warn('[digest] Morning: intl empty after dedup — falling back to top-ranked intl');
+          finalIntl = summarisedIntl.slice(0, counts.intl);
         }
+        if (finalLocal.length === 0 && summarisedLocal.length > 0) {
+          console.warn('[digest] Morning: local empty after dedup — falling back to top-ranked local');
+          finalLocal = summarisedLocal.slice(0, counts.local);
+        }
+        console.log(`[digest] Morning after evening: ${finalIntl.length} intl, ${finalLocal.length} local (skipped ${eveningStories.length} evening stories)`);
       } else {
         // Morning ran first: show top-ranked stories normally
         console.log('[digest] Morning ran first (no evening cache) — showing top-ranked stories');
