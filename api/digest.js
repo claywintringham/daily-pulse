@@ -42,9 +42,10 @@ import { getById }        from '../lib/sourceRegistry.js';
 
 export const config = { maxDuration: 120 };
 
-// Cache TTL: digest cached for 4 hours; scrape data for 1 hour.
-const DIGEST_TTL  = 4 * 60 * 60; // 4 hours
-const SCRAPED_TTL = 60 * 60;     // 1 hour (mirrors api/scrape.js)
+// Cache TTL: digest and scrape data both cached for 1 hour so breaking
+// stories appear within one refresh cycle.
+const DIGEST_TTL  = 60 * 60; // 1 hour
+const SCRAPED_TTL = 60 * 60; // 1 hour (mirrors api/scrape.js)
 
 // How many stories to surface per section per edition.
 // "Never blank on first run" — slice after filtering, not before, so
