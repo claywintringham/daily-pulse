@@ -300,6 +300,59 @@
 
     footer a { color: inherit; }
 
+    /* ── Masthead controls row ──────────────────────────────────────── */
+    .masthead-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.55rem 0 0.15rem;
+    }
+
+    .refresh-btn {
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--ink-mid);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: 0.28rem 0.65rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+
+    .refresh-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
+    .refresh-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .lang-toggle {
+      display: inline-flex;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      overflow: hidden;
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .lang-toggle button {
+      padding: 0.28rem 0.65rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-faint);
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .lang-toggle button + button { border-left: 1px solid var(--rule); }
+
+    .lang-toggle button.active   { background: var(--ink); color: var(--bg); }
+    .lang-toggle button:disabled { cursor: default; }
+
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }
@@ -315,6 +368,19 @@
     <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-meta" id="meta-line">Loading…</p>
+    <div class="masthead-controls">
+      <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+          <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+        </svg>
+        Get Latest
+      </button>
+      <div class="lang-toggle">
+        <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
+        <button id="lang-zh" onclick="setLang('zh')">中</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -333,7 +399,47 @@
 </footer>
 
 <script>
-  let currentDigestData = null; // stored on load so copySection can access stories
+  let currentDigestData  = null;
+  let currentLang        = 'en';
+  let translationCache   = null;   // { [clusterId]: { headline, summary } }
+  let currentGeneratedAt = null;
+
+  // ── UI string translations ─────────────────────────────────────────
+  const UI = {
+    en: {
+      updated:       'Updated',
+      learnMore:     'Learn more →',
+      firstReported: 'First reported',
+      breaking:      'Breaking',
+      newBadge:      'New',
+      international: 'International',
+      hongKong:      'Hong Kong',
+      loadingTitle:  'Fetching the latest digest…',
+      loadingBody:   'This usually takes a second.',
+      noStoriesTitle:'No stories yet',
+      noStoriesBody: 'The digest is being generated. Check back in a moment.',
+      errTitle:      'Something went wrong',
+      errRetry:      'Try refreshing, or check back in a few minutes.',
+      errMeta:       'Could not load digest',
+    },
+    zh: {
+      updated:       '更新於',
+      learnMore:     '了解更多 →',
+      firstReported: '首報',
+      breaking:      '突發',
+      newBadge:      '最新',
+      international: '國際',
+      hongKong:      '香港',
+      loadingTitle:  '正在載入最新摘要…',
+      loadingBody:   '通常只需幾秒鐘。',
+      noStoriesTitle:'暫無新聞',
+      noStoriesBody: '摘要正在生成中，請稍後再查看。',
+      errTitle:      '發生錯誤',
+      errRetry:      '請重新整理，或稍後再試。',
+      errMeta:       '無法載入摘要',
+    },
+  };
+  function t(key) { return UI[currentLang]?.[key] ?? UI.en[key] ?? key; }
 
   // ── "New" story tracking via localStorage ─────────────────────────
   // Headlines are stored with a timestamp so entries older than 36 hours
@@ -410,26 +516,33 @@
       .replace(/>/g, '&gt;');
   }
 
-  function renderCluster(c, tag, isNew) {
-    const breakingBadge = c.isBreaking ? '<span class="breaking-badge">Breaking</span>' : '';
-    const newBadge      = isNew        ? '<span class="new-badge">New</span>'           : '';
-    const badge = breakingBadge || newBadge;
-    const headline = c.readUrl
-      ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${c.headline}</a>`
-      : `${badge}${c.headline}`;
-    const pubTime  = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">First reported ${pubTime}</time>` : '';
+  function getDisplayText(c) {
+    const tr = translationCache?.[c.id];
+    return {
+      headline: tr?.headline ?? c.headline,
+      summary:  tr?.summary  ?? c.summary,
+    };
+  }
 
-    // "Learn more →" visible link + clipboard copy icon, displayed together below the summary
+  function renderCluster(c, tag, isNew) {
+    const { headline: displayHeadline, summary: displaySummary } = getDisplayText(c);
+
+    const breakingBadge = c.isBreaking ? `<span class="breaking-badge">${t('breaking')}</span>` : '';
+    const newBadge      = isNew        ? `<span class="new-badge">${t('newBadge')}</span>`      : '';
+    const badge = breakingBadge || newBadge;
+    const headlineHtml = c.readUrl
+      ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${displayHeadline}</a>`
+      : `${badge}${displayHeadline}`;
+    const pubTime  = fmtPublished(c.publishedAt);
+    const timeHtml = pubTime ? `<time class="story-time">${t('firstReported')} ${pubTime}</time>` : '';
+
     const learnMoreHtml = c.learnMoreUrl
-      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">Learn more →</a>`
+      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>`
       : '';
 
-    // Copy button — data attributes hold the values used to build the pasted text
-    // (copied text uses "(link)" format + #tag for note-taking apps)
     const copyBtn = `<button class="story-copy-btn"
-      data-headline="${escAttr(c.headline)}"
-      data-summary="${escAttr(c.summary || '')}"
+      data-headline="${escAttr(displayHeadline)}"
+      data-summary="${escAttr(displaySummary || '')}"
       data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}"
       data-tag="${escAttr(tag || '')}"
       onclick="copyStory(this)"
@@ -445,9 +558,9 @@
 
     return `
       <article class="story-card">
-        <h2 class="story-headline">${headline}</h2>
+        <h2 class="story-headline">${headlineHtml}</h2>
         ${timeHtml}
-        <p class="story-summary">${c.summary || ''}</p>
+        <p class="story-summary">${displaySummary || ''}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
         ${footer}
       </article>`;
@@ -461,6 +574,81 @@
         <span class="section-rule"></span>
       </div>
       ${clusters.map(c => renderCluster(c, tag, !seenSet.has(c.headline))).join('')}`;
+  }
+
+  // ── Language helpers ───────────────────────────────────────────────
+  function updateMetaLine() {
+    const meta = document.getElementById('meta-line');
+    if (meta && currentGeneratedAt) {
+      meta.textContent = `${t('updated')} ${fmtDate(currentGeneratedAt)}`;
+    }
+  }
+
+  async function setLang(lang) {
+    if (lang === currentLang) return;
+    const btnEn = document.getElementById('lang-en');
+    const btnZh = document.getElementById('lang-zh');
+
+    if (lang === 'zh') {
+      if (!currentDigestData) return;
+      btnEn.disabled = btnZh.disabled = true;
+      btnZh.textContent = '…';
+
+      if (!translationCache) {
+        const items = [
+          ...(currentDigestData.international || []),
+          ...(currentDigestData.local         || []),
+        ].map(c => ({ id: c.id, headline: c.headline, summary: c.summary || '' }));
+
+        try {
+          const res = await fetch('/api/translate', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ items }),
+          });
+          if (!res.ok) throw new Error(`translate API ${res.status}`);
+          const data = await res.json();
+          translationCache = Object.fromEntries(
+            (data.items || []).map(it => [it.id, it])
+          );
+        } catch (err) {
+          console.error('[lang] translation failed:', err);
+          btnEn.disabled = btnZh.disabled = false;
+          btnZh.textContent = '中';
+          return;
+        }
+      }
+
+      currentLang = 'zh';
+      btnZh.textContent = '中';
+      btnZh.classList.add('active');
+      btnEn.classList.remove('active');
+      btnEn.disabled = btnZh.disabled = false;
+
+    } else {
+      currentLang = 'en';
+      btnEn.classList.add('active');
+      btnZh.classList.remove('active');
+    }
+
+    updateMetaLine();
+    if (currentDigestData) {
+      document.getElementById('main-content').innerHTML = renderDigest(currentDigestData);
+    }
+  }
+
+  async function handleRefresh() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    // Reset lang state so fresh data starts in English
+    currentLang      = 'en';
+    translationCache = null;
+    const btnEn = document.getElementById('lang-en');
+    const btnZh = document.getElementById('lang-zh');
+    if (btnEn) { btnEn.classList.add('active');    btnEn.disabled = false; }
+    if (btnZh) { btnZh.classList.remove('active'); btnZh.disabled = false; btnZh.textContent = '中'; }
+    await loadDigest();
+    btn.disabled = false;
   }
 
   // ── Copy-to-clipboard (per story) ─────────────────────────────────
@@ -506,12 +694,12 @@
     const seenMap  = getSeenHeadlines();
     const seenSet  = new Set(Object.keys(seenMap));
 
-    const intl  = renderSection('International', data.international, 'international', seenSet);
-    const local = renderSection('Hong Kong',     data.local,         'local',         seenSet);
+    const intl  = renderSection(t('international'), data.international, 'international', seenSet);
+    const local = renderSection(t('hongKong'),      data.local,         'local',         seenSet);
 
     if (!intl && !local) {
-      return `<div class="state-box"><h2>No stories yet</h2>
-        <p>The digest is being generated. Check back in a moment.</p></div>`;
+      return `<div class="state-box"><h2>${t('noStoriesTitle')}</h2>
+        <p>${t('noStoriesBody')}</p></div>`;
     }
 
     // Mark all displayed headlines as seen AFTER rendering
@@ -531,26 +719,26 @@
 
     main.innerHTML = `<div class="state-box">
       <div class="spinner"></div>
-      <h2>Fetching the latest digest…</h2>
-      <p>This usually takes a second.</p>
+      <h2>${t('loadingTitle')}</h2>
+      <p>${t('loadingBody')}</p>
     </div>`;
 
     try {
       const res = await fetch('/api/digest');
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
-      currentDigestData = data;
+      currentDigestData  = data;
+      currentGeneratedAt = data.generatedAt;
 
-      const dateStr = fmtDate(data.generatedAt);
-      meta.textContent = `Updated ${dateStr}`;
+      updateMetaLine();
       document.getElementById('api-link').href = '/api/digest';
       main.innerHTML = renderDigest(data);
     } catch (err) {
-      meta.textContent = 'Could not load digest';
+      meta.textContent = t('errMeta');
       main.innerHTML = `<div class="state-box">
-        <h2>Something went wrong</h2>
+        <h2>${t('errTitle')}</h2>
         <p>${err.message}</p>
-        <p style="margin-top:0.5rem">Try refreshing, or check back in a few minutes.</p>
+        <p style="margin-top:0.5rem">${t('errRetry')}</p>
       </div>`;
     }
   }
