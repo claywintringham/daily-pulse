@@ -305,6 +305,26 @@
       color: var(--accent);
       animation: speak-pulse 1.4s ease-in-out infinite;
     }
+
+    .tts-play-prompt {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: 0.4rem;
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      color: var(--ink-mid);
+    }
+
+    .tts-play-prompt button {
+      font: inherit;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+    }
     @keyframes speak-pulse {
       0%, 100% { opacity: 1;   }
       50%       { opacity: 0.4; }
@@ -444,6 +464,7 @@
   let currentGeneratedAt = null;
   let speakingId         = null;   // cluster id currently being read aloud, or null
   let currentAudio       = null;   // HTMLAudioElement currently playing
+  let ttsPlayPromptEl    = null;   // retry prompt shown when mobile blocks playback
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -773,7 +794,7 @@
 
     const linkPart = url ? ` [(link)](${url})` : '';
     const tagPart  = tag ? ` #${tag}` : '';
-    const text = `${summary}${linkPart}${tagPart}`;
+    const text = `${headline}${headline && summary ? '\n' : ''}${summary}${linkPart}${tagPart}`;
 
     const finish = () => {
       btn.classList.add('copied');
@@ -802,16 +823,106 @@
   // ── Text-to-speech ────────────────────────────────────────────────
   // Both EN and ZH go through /api/tts → Gemini 2.5 Flash TTS.
   // Gemini auto-detects language, so no voice-ID or routing needed here.
-  // Web Speech API is kept as a last-resort fallback if the API fails.
+
+  const TTS_CACHE_NAME = 'dp-tts-v1';
+  const memoryTtsCache = new Map();
+
+  async function sha256Hex(text) {
+    if (!window.crypto?.subtle || !window.TextEncoder) return null;
+    const bytes = new TextEncoder().encode(text);
+    const hash  = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function getTtsCacheKey(text, lang) {
+    const raw = `${lang}::${text}`;
+    return await sha256Hex(raw) || btoa(unescape(encodeURIComponent(raw))).slice(0, 120);
+  }
+
+  async function getCachedTtsBlob(cacheKey) {
+    if (memoryTtsCache.has(cacheKey)) return memoryTtsCache.get(cacheKey);
+    if (!('caches' in window)) return null;
+    const cache = await caches.open(TTS_CACHE_NAME);
+    const hit   = await cache.match(`/__tts_cache__/${cacheKey}`);
+    if (!hit) return null;
+    const blob = await hit.blob();
+    memoryTtsCache.set(cacheKey, blob);
+    return blob;
+  }
+
+  async function saveCachedTtsBlob(cacheKey, blob) {
+    memoryTtsCache.set(cacheKey, blob);
+    if (!('caches' in window)) return;
+    const cache = await caches.open(TTS_CACHE_NAME);
+    await cache.put(`/__tts_cache__/${cacheKey}`, new Response(blob, {
+      headers: { 'Content-Type': blob.type || 'audio/wav' },
+    }));
+  }
+
+  function clearTtsPlayPrompt() {
+    if (ttsPlayPromptEl) {
+      ttsPlayPromptEl.remove();
+      ttsPlayPromptEl = null;
+    }
+  }
+
+  function finishSpeak(btn, id) {
+    if (speakingId === id) speakingId = null;
+    if (btn) {
+      btn.classList.remove('speaking');
+      btn.title = 'Read aloud';
+    }
+    currentAudio = null;
+    clearTtsPlayPrompt();
+  }
+
+  function showTtsPlayPrompt(btn, audio, id) {
+    clearTtsPlayPrompt();
+    const prompt = document.createElement('span');
+    prompt.className = 'tts-play-prompt';
+    prompt.innerHTML = `<span>Tap again to play</span><button type="button">Play audio</button>`;
+    const action = prompt.querySelector('button');
+    action.addEventListener('click', async () => {
+      try {
+        await audio.play();
+        clearTtsPlayPrompt();
+      } catch (err) {
+        console.warn('[tts] retry play blocked:', err);
+      }
+    });
+    const footer = btn.closest('.story-footer');
+    if (footer) footer.appendChild(prompt);
+    ttsPlayPromptEl = prompt;
+  }
+
+  async function playTtsBlob(blob, btn, id) {
+    const url   = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.preload = 'auto';
+
+    const cleanup = () => {
+      URL.revokeObjectURL(url);
+      finishSpeak(btn, id);
+    };
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+
+    try {
+      await audio.play();
+    } catch (err) {
+      console.warn('[tts] play blocked or failed:', err);
+      showTtsPlayPrompt(btn, audio, id);
+    }
+  }
 
   function stopSpeaking() {
+    clearTtsPlayPrompt();
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.src = '';
       currentAudio = null;
     }
-    // Also cancel any Web Speech fallback that may be running
-    try { if (window.speechSynthesis?.speaking) window.speechSynthesis.cancel(); } catch {}
     speakingId = null;
     document.querySelectorAll('.story-speak-btn.speaking').forEach(b => {
       b.classList.remove('speaking');
@@ -825,15 +936,22 @@
     const wasPlaying = (speakingId === id);
 
     stopSpeaking();
-    if (wasPlaying || !id) return;
+    if (wasPlaying || !id || !text) return;
 
     speakingId = id;
     btn.classList.add('speaking');
     btn.title = 'Stop reading';
 
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    const lang     = currentLang === 'zh' ? 'zh' : 'en';
+    const cacheKey = await getTtsCacheKey(text, lang);
 
     try {
+      const cached = await getCachedTtsBlob(cacheKey);
+      if (cached) {
+        if (speakingId !== id) return;
+        return await playTtsBlob(cached, btn, id);
+      }
+
       const res = await fetch('/api/tts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -842,45 +960,14 @@
       if (!res.ok) throw new Error(`TTS ${res.status}`);
       if (speakingId !== id) return;
 
-      const blob  = await res.blob();
-      const url   = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudio = audio;
-
-      const cleanup = () => {
-        URL.revokeObjectURL(url);
-        if (speakingId === id) {
-          speakingId   = null;
-          currentAudio = null;
-          btn.classList.remove('speaking');
-          btn.title = 'Read aloud';
-        }
-      };
-      audio.onended = cleanup;
-      audio.onerror = cleanup;
-      audio.play().catch(cleanup);
+      const blob = await res.blob();
+      await saveCachedTtsBlob(cacheKey, blob);
+      if (speakingId !== id) return;
+      await playTtsBlob(blob, btn, id);
 
     } catch (err) {
-      // Last-resort fallback: browser Web Speech API
-      console.warn('[tts] API failed, falling back to Web Speech:', err.message);
-      if (window.speechSynthesis && speakingId === id) {
-        const utt  = new SpeechSynthesisUtterance(text);
-        utt.lang   = lang === 'zh' ? 'zh-CN' : 'en-US';
-        utt.rate   = 0.95;
-        const done = () => {
-          if (speakingId === id) {
-            speakingId = null;
-            btn.classList.remove('speaking');
-            btn.title = 'Read aloud';
-          }
-        };
-        utt.onend = utt.onerror = done;
-        window.speechSynthesis.speak(utt);
-      } else if (speakingId === id) {
-        speakingId = null;
-        btn.classList.remove('speaking');
-        btn.title = 'Read aloud';
-      }
+      console.error('[tts] Gemini TTS failed:', err);
+      finishSpeak(btn, id);
     }
   }
 
