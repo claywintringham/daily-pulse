@@ -380,7 +380,6 @@
   let pullRefreshLocked = false;
   let pullStartY = null;
   let pullArmed = false;
-  let wheelPullAccum = 0;
   const UI = {
     en: { updated:'Updated', learnMore:'Learn more →', firstReported:'First reported', breaking:'Breaking', newBadge:'New', international:'International', hongKong:'Hong Kong', localAudio:'Local', playDigest:'Play digest', stopDigest:'Stop digest', loadingTitle:'Fetching the latest digest…', loadingBody:'This usually takes a minute.', noStoriesTitle:'No stories yet', noStoriesBody:'The digest is being generated. Check back in a moment.', errTitle:'Something went wrong', errRetry:'Try refreshing, or check back in a few minutes.', errMeta:'Could not load digest', pullPrompt:'Release to refresh', tapAgainToPlay:'Tap again to play', playAudio:'Play audio' },
     zh: { updated:'更新於', learnMore:'了解更多 →', firstReported:'首報', breaking:'突發', newBadge:'最新', international:'國際', hongKong:'香港', localAudio:'本地', playDigest:'播放摘要', stopDigest:'停止播放', loadingTitle:'正在載入最新摘要…', loadingBody:'通常只需幾秒鐘。', noStoriesTitle:'暫無新聞', noStoriesBody:'摘要正在生成中，請稍後再查看。', errTitle:'發生錯誤', errRetry:'請重新整理，或稍後再試。', errMeta:'無法載入摘要', pullPrompt:'放手即可更新', tapAgainToPlay:'再按一次播放', playAudio:'播放音訊' },
@@ -745,7 +744,12 @@
     }
   }
   function attachPullToRefresh() {
+    const supportsTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     const indicator = document.getElementById('pull-refresh-indicator');
+    if (!supportsTouch) {
+      if (indicator) indicator.style.display = 'none';
+      return;
+    }
     const showIndicator = show => indicator?.classList.toggle('visible', show);
     window.addEventListener('touchstart', e => {
       if (window.scrollY <= 0) { pullStartY = e.touches[0].clientY; pullArmed = false; }
@@ -761,13 +765,6 @@
       if (pullArmed && !pullRefreshLocked) handleRefresh();
       pullStartY = null; pullArmed = false;
       setTimeout(() => showIndicator(false), 300);
-    }, { passive:true });
-    window.addEventListener('wheel', e => {
-      if (pullRefreshLocked) return;
-      if (window.scrollY <= 0 && e.deltaY < 0) {
-        wheelPullAccum += Math.abs(e.deltaY);
-        if (wheelPullAccum > 140) { wheelPullAccum = 0; handleRefresh(); }
-      } else { wheelPullAccum = 0; }
     }, { passive:true });
   }
   (function restoreLang() {
