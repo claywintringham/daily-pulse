@@ -50,7 +50,7 @@ const DIGEST_TTL  = 20 * 60; // 20 minutes
 const SCRAPED_TTL = 20 * 60; // 20 minutes
 
 // Rolling digest: always show the top N stories within the staleness window.
-const STORY_COUNTS = { intl: 5, local: 2 };
+const STORY_COUNTS = { intl: 3, local: 2 };
 
 // Stories older than this are aged out of the digest.
 const STALE_WINDOW_MS = 36 * 60 * 60 * 1000; // 36 hours
@@ -538,6 +538,20 @@ export default async function handler(req, res) {
 
     res.setHeader('X-Cache', 'MISS');
 
+    // ── Streaming vs JSON response ──────────────────────────────────────────
+    // Cron warm calls (x-digest-format: json) bypass SSE for clean HTTP drain.
+    // All other callers receive an SSE stream on cache miss for fast first paint.
+    const wantsJson = req.headers['x-digest-format'] === 'json';
+    if (!wantsJson) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+    }
+    const sse = (obj) => {
+      try { if (!wantsJson) res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
     // ── 2. Get pre-scraped cluster data ─────────────────────────────────────
     let scraped = await redisGet('scraped:rolling');
 
@@ -633,11 +647,14 @@ export default async function handler(req, res) {
     );
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
-    const [intlResults, localResults] = await Promise.all([
-      summarizeClusters(filteredIntl),
-      summarizeClusters(filteredLocal),
-    ]);
-    const summarisedIntl  = byScore(deduplicateByHeadline(noQuestions(intlResults)));
+    // International first — immediately streamed to client for fast first paint.
+    const intlResults    = await summarizeClusters(filteredIntl);
+    const summarisedIntl = byScore(deduplicateByHeadline(noQuestions(intlResults)));
+    const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
+    sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
+
+    // Local second.
+    const localResults    = await summarizeClusters(filteredLocal);
     const summarisedLocal = byScore(deduplicateByHeadline(noQuestions(localResults)));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
@@ -645,7 +662,6 @@ export default async function handler(req, res) {
     // Always return the highest-scored stories within the 36-hour window.
     // No morning/evening split — the frontend tracks which stories are new
     // via localStorage and shows a "New" badge on first view.
-    const finalIntl  = summarisedIntl.slice(0, STORY_COUNTS.intl);
     const finalLocal = summarisedLocal.slice(0, STORY_COUNTS.local);
     console.log(`[digest] Rolling: ${finalIntl.length} intl, ${finalLocal.length} local`);
 
@@ -670,7 +686,11 @@ export default async function handler(req, res) {
       console.warn('[digest] Redis write failed (non-fatal):', e.message)
     );
 
-    return res.status(200).json(response);
+    if (wantsJson) {
+      return res.status(200).json(response);
+    }
+    sse({ type: 'done', generatedAt: response.generatedAt, scrapedAt: response.scrapedAt, meta });
+    return res.end();
 
   } catch (err) {
     console.error('[digest] Fatal error:', err);
