@@ -8,332 +8,67 @@
   <link rel="icon" type="image/png" href="/apple-touch-icon.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --ink: #111111;
-      --ink-mid: #444444;
-      --ink-faint: #888888;
-      --rule: #d0c8b8;
-      --bg: #f5f1ea;
-      --accent: #b5202a;
-      --chip-bg: #e8e2d8;
-      --chip-hover: #d0c8b8;
-      --sans: 'Georgia', 'Times New Roman', Times, serif;
-      --ui: system-ui, -apple-system, sans-serif;
-    }
+    :root { --ink:#111111; --ink-mid:#444444; --ink-faint:#888888; --rule:#d0c8b8; --bg:#f5f1ea; --accent:#b5202a; --chip-bg:#e8e2d8; --chip-hover:#d0c8b8; --sans:'Georgia','Times New Roman',Times,serif; --ui:system-ui,-apple-system,sans-serif; }
     html { font-size: 16px; }
-    body {
-      background: var(--bg);
-      color: var(--ink);
-      font-family: var(--sans);
-      line-height: 1.6;
-      min-height: 100vh;
-    }
-    .masthead {
-      border-bottom: 3px double var(--ink);
-      padding: 1.25rem 0 0.75rem;
-      text-align: center;
-      background: var(--bg);
-    }
-    .masthead-eyebrow {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-faint);
-      margin-bottom: 0.25rem;
-    }
-    .masthead-title {
-      font-size: clamp(2.2rem, 6vw, 3.8rem);
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      color: var(--ink);
-    }
-    .masthead-title span { color: var(--accent); }
-    .masthead-meta {
-      font-family: var(--ui);
-      font-size: 0.72rem;
-      color: var(--ink-faint);
-      margin-top: 0.5rem;
-      letter-spacing: 0.04em;
-    }
-    .container {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 0 1.25rem;
-    }
-    .masthead-controls {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.55rem 0 0.15rem;
-    }
-    .control-group {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-    }
-    .digest-speak-btn {
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      color: var(--ink-mid);
-      background: none;
-      border: 1px solid var(--rule);
-      border-radius: 3px;
-      padding: 0.28rem 0.65rem;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
-    }
-    .digest-speak-btn:hover { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
-    .digest-speak-btn.speaking { color: var(--accent); border-color: var(--accent); }
-    .lang-toggle {
-      display: inline-flex;
-      border: 1px solid var(--rule);
-      border-radius: 3px;
-      overflow: hidden;
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-    }
-    .lang-toggle button {
-      padding: 0.28rem 0.65rem;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--ink-faint);
-      transition: background 0.12s, color 0.12s;
-    }
-    .lang-toggle button + button { border-left: 1px solid var(--rule); }
-    .lang-toggle button.active { background: var(--ink); color: var(--bg); }
-    .lang-toggle button:disabled { cursor: default; }
-    .translating-bar {
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      color: var(--ink-faint);
-      letter-spacing: 0.04em;
-      text-align: center;
-      padding: 0.4rem 0 0;
-      display: none;
-    }
-    .translating-bar.visible { display: block; }
-    #pull-refresh-indicator {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      height: 0;
-      overflow: hidden;
-      font-family: var(--ui);
-      font-size: 0.72rem;
-      color: var(--ink-faint);
-      text-align: center;
-      transition: height 0.16s ease;
-    }
-    #pull-refresh-indicator.visible {
-      height: 1.8rem;
-      padding-top: 0.35rem;
-    }
-    .section-header {
-      display: flex;
-      align-items: baseline;
-      gap: 0.75rem;
-      padding: 1.25rem 0 0.5rem;
-      border-bottom: 2px solid var(--ink);
-      margin-bottom: 0;
-    }
-    .section-label {
-      font-family: var(--ui);
-      font-size: 0.78rem;
-      font-weight: 800;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink);
-    }
-    .section-rule {
-      flex: 1;
-      height: 1px;
-      background: var(--rule);
-    }
-    .story-card {
-      border-bottom: 1px solid var(--rule);
-      padding: 1.2rem 0 1.1rem;
-    }
-    .story-card:last-child { border-bottom: none; }
-    .story-headline {
-      font-size: 1.25rem;
-      font-weight: 700;
-      line-height: 1.3;
-      color: var(--ink);
-      margin-bottom: 0.55rem;
-      letter-spacing: -0.01em;
-    }
-    .story-headline a {
-      color: inherit;
-      text-decoration: none;
-    }
-    .story-headline a:hover { color: var(--accent); }
-    .story-summary {
-      font-size: 0.95rem;
-      line-height: 1.65;
-      color: var(--ink-mid);
-      margin-bottom: 0.75rem;
-    }
-    .story-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      align-items: center;
-    }
-    .chip {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      padding: 0.18rem 0.5rem;
-      border-radius: 2px;
-      background: var(--chip-bg);
-      color: var(--ink-mid);
-      text-decoration: none;
-      border: 1px solid transparent;
-      transition: background 0.12s, border-color 0.12s;
-      white-space: nowrap;
-    }
-    .chip:hover {
-      background: var(--chip-hover);
-      border-color: var(--rule);
-      color: var(--ink);
-    }
-    .chip.paywalled,
-    .chip.unlinked {
-      cursor: default;
-      pointer-events: none;
-    }
-    .chip.paywalled { opacity: 0.5; }
-    .chip-pos { color: var(--ink-faint); font-weight: 400; }
-    .story-time {
-      display: block;
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      color: var(--ink-faint);
-      font-style: italic;
-      letter-spacing: 0.02em;
-      margin-bottom: 0.5rem;
-    }
-    .state-box {
-      text-align: center;
-      padding: 4rem 1rem;
-      font-family: var(--ui);
-      color: var(--ink-faint);
-    }
-    .state-box .spinner {
-      width: 28px; height: 28px;
-      border: 2px solid var(--rule);
-      border-top-color: var(--ink);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 1rem;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .state-box h2 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--ink-mid);
-      margin-bottom: 0.35rem;
-    }
-    .state-box p { font-size: 0.85rem; }
-    .new-badge,
-    .breaking-badge {
-      font-family: var(--ui);
-      font-size: 0.6rem;
-      font-weight: 800;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
-      color: #fff;
-      padding: 0.13rem 0.38rem;
-      border-radius: 2px;
-      vertical-align: middle;
-      margin-right: 0.35rem;
-      display: inline-block;
-      line-height: 1.6;
-    }
-    .new-badge { background: #2a9d8f; }
-    .breaking-badge { background: var(--accent); }
-    .learn-more-link {
-      font-family: var(--ui);
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--accent);
-      text-decoration: none;
-      letter-spacing: 0.02em;
-    }
-    .learn-more-link:hover { text-decoration: underline; }
-    .story-footer {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-top: 0.55rem;
-      flex-wrap: wrap;
-    }
-    .story-copy-btn,
-    .story-speak-btn {
-      display: inline-flex;
-      align-items: center;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--ink-faint);
-      padding: 0;
-      line-height: 1;
-      transition: color 0.15s;
-    }
-    .story-copy-btn:hover,
-    .story-speak-btn:hover { color: var(--ink); }
-    .story-copy-btn.copied { color: #2a7a2a; }
-    .story-speak-btn.speaking { color: var(--accent); animation: speak-pulse 1.4s ease-in-out infinite; }
-    @keyframes speak-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    .tts-play-prompt {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      margin-left: 0.4rem;
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      color: var(--ink-mid);
-    }
-    .tts-play-prompt button {
-      font: inherit;
-      color: var(--accent);
-      background: none;
-      border: none;
-      padding: 0;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-    footer {
-      border-top: 1px solid var(--rule);
-      margin-top: 2rem;
-      padding: 1.25rem 0;
-      text-align: center;
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      color: var(--ink-faint);
-      letter-spacing: 0.04em;
-    }
-    footer a { color: inherit; }
-    #main-content { transition: opacity 0.2s; }
-    #main-content.translating { opacity: 0.35; pointer-events: none; }
-    @media (max-width: 520px) {
-      .masthead-controls { align-items: flex-start; }
-      .story-headline { font-size: 1.1rem; }
-      .story-summary  { font-size: 0.9rem; }
-    }
+    body { background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.6; min-height:100vh; }
+    .masthead { border-bottom:3px double var(--ink); padding:1.25rem 0 0.75rem; text-align:center; background:var(--bg); }
+    .masthead-eyebrow { font-family:var(--ui); font-size:0.68rem; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:0.25rem; }
+    .masthead-title { font-size:clamp(2.2rem,6vw,3.8rem); font-weight:900; letter-spacing:-0.02em; line-height:1; color:var(--ink); }
+    .masthead-title span { color:var(--accent); }
+    .masthead-meta { font-family:var(--ui); font-size:0.72rem; color:var(--ink-faint); margin-top:0.5rem; letter-spacing:0.04em; }
+    .container { max-width:780px; margin:0 auto; padding:0 1.25rem; }
+    .masthead-controls { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.55rem 0 0.15rem; }
+    .control-group { display:flex; align-items:center; gap:0.55rem; }
+    .digest-speak-btn { font-family:var(--ui); font-size:0.7rem; font-weight:600; letter-spacing:0.03em; color:var(--ink-mid); background:none; border:1px solid var(--rule); border-radius:3px; padding:0.28rem 0.65rem; cursor:pointer; display:inline-flex; align-items:center; gap:0.35rem; transition:background 0.12s,color 0.12s,border-color 0.12s; }
+    .digest-speak-btn:hover { background:var(--chip-bg); border-color:var(--ink-faint); color:var(--ink); }
+    .digest-speak-btn.speaking { color:var(--accent); border-color:var(--accent); }
+    .lang-toggle { display:inline-flex; border:1px solid var(--rule); border-radius:3px; overflow:hidden; font-family:var(--ui); font-size:0.7rem; font-weight:600; letter-spacing:0.05em; }
+    .lang-toggle button { padding:0.28rem 0.65rem; background:none; border:none; cursor:pointer; color:var(--ink-faint); transition:background 0.12s,color 0.12s; }
+    .lang-toggle button + button { border-left:1px solid var(--rule); }
+    .lang-toggle button.active { background:var(--ink); color:var(--bg); }
+    .lang-toggle button:disabled { cursor:default; }
+    .translating-bar { font-family:var(--ui); font-size:0.7rem; color:var(--ink-faint); letter-spacing:0.04em; text-align:center; padding:0.4rem 0 0; display:none; }
+    .translating-bar.visible { display:block; }
+    #pull-refresh-indicator { position:sticky; top:0; z-index:10; height:0; overflow:hidden; font-family:var(--ui); font-size:0.72rem; color:var(--ink-faint); text-align:center; transition:height 0.16s ease; }
+    #pull-refresh-indicator.visible { height:1.8rem; padding-top:0.35rem; }
+    .section-header { display:flex; align-items:baseline; gap:0.75rem; padding:1.25rem 0 0.5rem; border-bottom:2px solid var(--ink); margin-bottom:0; }
+    .section-label { font-family:var(--ui); font-size:0.78rem; font-weight:800; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink); }
+    .section-rule { flex:1; height:1px; background:var(--rule); }
+    .story-card { border-bottom:1px solid var(--rule); padding:1.2rem 0 1.1rem; }
+    .story-card:last-child { border-bottom:none; }
+    .story-headline { font-size:1.25rem; font-weight:700; line-height:1.3; color:var(--ink); margin-bottom:0.55rem; letter-spacing:-0.01em; }
+    .story-headline a { color:inherit; text-decoration:none; }
+    .story-headline a:hover { color:var(--accent); }
+    .story-summary { font-size:0.95rem; line-height:1.65; color:var(--ink-mid); margin-bottom:0.75rem; }
+    .story-chips { display:flex; flex-wrap:wrap; gap:0.35rem; align-items:center; }
+    .chip { font-family:var(--ui); font-size:0.68rem; font-weight:600; letter-spacing:0.04em; padding:0.18rem 0.5rem; border-radius:2px; background:var(--chip-bg); color:var(--ink-mid); text-decoration:none; border:1px solid transparent; transition:background 0.12s,border-color 0.12s; white-space:nowrap; }
+    .chip:hover { background:var(--chip-hover); border-color:var(--rule); color:var(--ink); }
+    .chip.paywalled,.chip.unlinked { cursor:default; pointer-events:none; }
+    .chip.paywalled { opacity:0.5; }
+    .chip-pos { color:var(--ink-faint); font-weight:400; }
+    .story-time { display:block; font-family:var(--ui); font-size:0.7rem; color:var(--ink-faint); font-style:italic; letter-spacing:0.02em; margin-bottom:0.5rem; }
+    .state-box { text-align:center; padding:4rem 1rem; font-family:var(--ui); color:var(--ink-faint); }
+    .state-box .spinner { width:28px; height:28px; border:2px solid var(--rule); border-top-color:var(--ink); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 1rem; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .state-box h2 { font-size:1rem; font-weight:600; color:var(--ink-mid); margin-bottom:0.35rem; }
+    .state-box p { font-size:0.85rem; }
+    .new-badge,.breaking-badge { font-family:var(--ui); font-size:0.6rem; font-weight:800; letter-spacing:0.13em; text-transform:uppercase; color:#fff; padding:0.13rem 0.38rem; border-radius:2px; vertical-align:middle; margin-right:0.35rem; display:inline-block; line-height:1.6; }
+    .new-badge { background:#2a9d8f; } .breaking-badge { background:var(--accent); }
+    .learn-more-link { font-family:var(--ui); font-size:0.75rem; font-weight:600; color:var(--accent); text-decoration:none; letter-spacing:0.02em; }
+    .learn-more-link:hover { text-decoration:underline; }
+    .story-footer { display:flex; align-items:center; gap:0.4rem; margin-top:0.55rem; flex-wrap:wrap; }
+    .story-copy-btn,.story-speak-btn { display:inline-flex; align-items:center; background:none; border:none; cursor:pointer; color:var(--ink-faint); padding:0; line-height:1; transition:color 0.15s; }
+    .story-copy-btn:hover,.story-speak-btn:hover { color:var(--ink); }
+    .story-copy-btn.copied { color:#2a7a2a; }
+    .story-speak-btn.speaking { color:var(--accent); animation:speak-pulse 1.4s ease-in-out infinite; }
+    @keyframes speak-pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .tts-play-prompt { display:inline-flex; align-items:center; gap:0.35rem; margin-left:0.4rem; font-family:var(--ui); font-size:0.68rem; color:var(--ink-mid); }
+    .tts-play-prompt button { font:inherit; color:var(--accent); background:none; border:none; padding:0; cursor:pointer; text-decoration:underline; }
+    footer { border-top:1px solid var(--rule); margin-top:2rem; padding:1.25rem 0; text-align:center; font-family:var(--ui); font-size:0.7rem; color:var(--ink-faint); letter-spacing:0.04em; }
+    footer a { color:inherit; }
+    #main-content { transition:opacity 0.2s; }
+    #main-content.translating { opacity:0.35; pointer-events:none; }
+    @media (max-width:520px) { .masthead-controls { align-items:flex-start; } .story-headline { font-size:1.1rem; } .story-summary { font-size:0.9rem; } }
   </style>
 </head>
 <body>
@@ -345,439 +80,63 @@
     <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
     <div class="masthead-controls">
       <div class="control-group">
-        <button class="digest-speak-btn" id="digest-speak-btn" onclick="speakEntireDigest()" title="Read full digest aloud">
+        <button type="button" class="digest-speak-btn" id="digest-speak-btn" title="Read full digest aloud">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
           <span id="digest-speak-label">Play digest</span>
         </button>
       </div>
       <div class="lang-toggle">
-        <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
-        <button id="lang-zh" onclick="setLang('zh')">中</button>
+        <button type="button" id="lang-en" class="active">EN</button>
+        <button type="button" id="lang-zh">中</button>
       </div>
     </div>
   </div>
 </header>
 <div class="container" id="pull-refresh-indicator">Release to refresh</div>
-<main class="container" id="main-content">
-  <div class="state-box">
-    <div class="spinner"></div>
-    <h2>Fetching today's digest…</h2>
-    <p>Pulling the latest headlines from across Hong Kong and the world.</p>
-  </div>
-</main>
-<footer class="container">
-  <p>Daily Pulse aggregates news headlines from public news outlets.
-  Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
-</footer>
+<main class="container" id="main-content"><div class="state-box"><div class="spinner"></div><h2>Fetching today's digest…</h2><p>Pulling the latest headlines from across Hong Kong and the world.</p></div></main>
+<footer class="container"><p>Daily Pulse aggregates news headlines from public news outlets. Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p></footer>
 <script>
-  let currentDigestData = null;
-  let currentLang = 'en';
-  let translationCache = null;
-  let currentGeneratedAt = null;
-  let speakingId = null;
-  let currentAudio = null;
-  let ttsPlayPromptEl = null;
-  let pullRefreshLocked = false;
-  let pullStartY = null;
-  let pullArmed = false;
-  const UI = {
-    en: { updated:'Updated', learnMore:'Learn more →', firstReported:'First reported', breaking:'Breaking', newBadge:'New', international:'International', hongKong:'Hong Kong', localAudio:'Local', playDigest:'Play digest', stopDigest:'Stop digest', loadingTitle:'Fetching the latest digest…', loadingBody:'This usually takes a minute.', noStoriesTitle:'No stories yet', noStoriesBody:'The digest is being generated. Check back in a moment.', errTitle:'Something went wrong', errRetry:'Try refreshing, or check back in a few minutes.', errMeta:'Could not load digest', pullPrompt:'Release to refresh', tapAgainToPlay:'Tap again to play', playAudio:'Play audio' },
-    zh: { updated:'更新於', learnMore:'了解更多 →', firstReported:'首報', breaking:'突發', newBadge:'最新', international:'國際', hongKong:'香港', localAudio:'本地', playDigest:'播放摘要', stopDigest:'停止播放', loadingTitle:'正在載入最新摘要…', loadingBody:'通常只需幾秒鐘。', noStoriesTitle:'暫無新聞', noStoriesBody:'摘要正在生成中，請稍後再查看。', errTitle:'發生錯誤', errRetry:'請重新整理，或稍後再試。', errMeta:'無法載入摘要', pullPrompt:'放手即可更新', tapAgainToPlay:'再按一次播放', playAudio:'播放音訊' },
-  };
-  function t(key) { return UI[currentLang]?.[key] ?? UI.en[key] ?? key; }
-  const SEEN_TTL_MS = 36 * 60 * 60 * 1000;
-  const LS_LANG = 'dp_lang';
-  const LS_XLAT_PFX = 'dp_xlat_';
-  const TTS_CACHE_NAME = 'dp-tts-v1';
-  const memoryTtsCache = new Map();
-  function getSeenHeadlines() {
-    try {
-      const raw = JSON.parse(localStorage.getItem('dp_seen') || '{}');
-      const cutoff = Date.now() - SEEN_TTL_MS;
-      const pruned = {};
-      for (const [k,v] of Object.entries(raw)) if (v > cutoff) pruned[k] = v;
-      return pruned;
-    } catch { return {}; }
-  }
-  function markHeadlinesSeen(headlines) {
-    try {
-      const seen = getSeenHeadlines();
-      const now = Date.now();
-      for (const h of headlines) if (!seen[h]) seen[h] = now;
-      localStorage.setItem('dp_seen', JSON.stringify(seen));
-    } catch {}
-  }
-  function saveLang(lang) { try { localStorage.setItem(LS_LANG, lang); } catch {} }
-  function loadLang() { try { return localStorage.getItem(LS_LANG) || 'en'; } catch { return 'en'; } }
-  function saveXlatCache(generatedAt, cache) {
-    try {
-      const target = LS_XLAT_PFX + generatedAt;
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(LS_XLAT_PFX) && k !== target) keys.push(k);
-      }
-      keys.forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(target, JSON.stringify(cache));
-    } catch {}
-  }
-  function loadXlatCache(generatedAt) {
-    try {
-      const raw = localStorage.getItem(LS_XLAT_PFX + generatedAt);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
-  function fmtDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-  }
-  function fmtPublished(iso) {
-    if (!iso) return null;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString(undefined, { hour:'2-digit', minute:'2-digit' });
-    const date = d.toLocaleString(undefined, { day:'numeric', month:'short' });
-    return `${time} · ${date}`;
-  }
-  function renderChips(sources) {
-    return sources.map(s => {
-      if (s.paywalled) return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
-      if (!s.url) return `<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`;
-      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`;
-    }).join('');
-  }
-  function escAttr(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-  function getDisplayText(c) {
-    if (currentLang === 'zh' && translationCache?.[c.id]) return { headline: translationCache[c.id].headline, summary: translationCache[c.id].summary };
-    return { headline: c.headline, summary: c.summary };
-  }
-  function renderCluster(c, tag, isNew) {
-    const { headline: displayHeadline, summary: displaySummary } = getDisplayText(c);
-    const breakingBadge = c.isBreaking ? `<span class="breaking-badge">${t('breaking')}</span>` : '';
-    const newBadge = isNew ? `<span class="new-badge">${t('newBadge')}</span>` : '';
-    const badge = breakingBadge || newBadge;
-    const headlineHtml = c.readUrl ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${displayHeadline}</a>` : `${badge}${displayHeadline}`;
-    const pubTime = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">${t('firstReported')} ${pubTime}</time>` : '';
-    const learnMoreHtml = c.learnMoreUrl ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>` : '';
-    const copyBtn = `<button class="story-copy-btn" data-headline="${escAttr(displayHeadline)}" data-summary="${escAttr(displaySummary || '')}" data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}" data-tag="${escAttr(tag || '')}" onclick="copyStory(this)" title="Copy story"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/></svg></button>`;
-    const speakText = `${displayHeadline ? displayHeadline + '. ' : ''}${displaySummary || ''}`;
-    const speakBtn = `<button class="story-speak-btn" data-id="${escAttr(c.id)}" data-text="${escAttr(speakText)}" onclick="speakStory(this)" title="Read aloud"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg></button>`;
-    const footer = (learnMoreHtml || copyBtn || speakBtn) ? `<div class="story-footer">${learnMoreHtml}${copyBtn}${speakBtn}</div>` : '';
-    return `<article class="story-card"><h2 class="story-headline">${headlineHtml}</h2>${timeHtml}<p class="story-summary">${displaySummary || ''}</p><div class="story-chips">${renderChips(c.sources)}</div>${footer}</article>`;
-  }
-  function renderSection(label, clusters, tag, seenSet) {
-    if (!clusters || clusters.length === 0) return '';
-    return `<div class="section-header"><span class="section-label">${label}</span><span class="section-rule"></span></div>${clusters.map(c => renderCluster(c, tag, !seenSet.has(c.headline))).join('')}`;
-  }
-  function updateMetaLine() {
-    const meta = document.getElementById('meta-line');
-    if (meta && currentGeneratedAt) meta.textContent = `${t('updated')} ${fmtDate(currentGeneratedAt)}`;
-    const digestLabel = document.getElementById('digest-speak-label');
-    if (digestLabel) digestLabel.textContent = speakingId === '__digest__' ? t('stopDigest') : t('playDigest');
-    const pull = document.getElementById('pull-refresh-indicator');
-    if (pull) pull.textContent = t('pullPrompt');
-  }
-  async function setLang(lang) {
-    if (lang === currentLang && !(lang === 'zh' && !translationCache)) return;
-    stopSpeaking();
-    const btnEn = document.getElementById('lang-en');
-    const btnZh = document.getElementById('lang-zh');
-    const main = document.getElementById('main-content');
-    const bar = document.getElementById('translating-bar');
-    if (lang === 'zh') {
-      if (!currentDigestData) return;
-      btnEn.disabled = btnZh.disabled = true;
-      btnZh.textContent = '…';
-      if (!translationCache) {
-        if (main) main.classList.add('translating');
-        if (bar) bar.classList.add('visible');
-        const items = [...(currentDigestData.international || []), ...(currentDigestData.local || [])].map(c => ({ id:c.id, headline:c.headline, summary:c.summary || '' }));
-        try {
-          const res = await fetch('/api/translate', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ items }) });
-          if (!res.ok) throw new Error(`translate API ${res.status}`);
-          const data = await res.json();
-          translationCache = Object.fromEntries((data.items || []).map(it => [it.id, it]));
-          if (currentGeneratedAt) saveXlatCache(currentGeneratedAt, translationCache);
-        } catch (err) {
-          console.error('[lang] translation failed:', err);
-          if (main) main.classList.remove('translating');
-          if (bar) bar.classList.remove('visible');
-          btnEn.disabled = btnZh.disabled = false;
-          btnZh.textContent = '中';
-          return;
-        }
-        if (main) main.classList.remove('translating');
-        if (bar) bar.classList.remove('visible');
-      }
-      currentLang = 'zh';
-      saveLang('zh');
-      btnZh.textContent = '中';
-      btnZh.classList.add('active');
-      btnEn.classList.remove('active');
-      btnEn.disabled = btnZh.disabled = false;
-    } else {
-      currentLang = 'en';
-      saveLang('en');
-      btnEn.classList.add('active');
-      btnZh.classList.remove('active');
-    }
-    updateMetaLine();
-    if (currentDigestData) document.getElementById('main-content').innerHTML = renderDigest(currentDigestData);
-  }
-  async function handleRefresh() {
-    if (pullRefreshLocked) return;
-    pullRefreshLocked = true;
-    stopSpeaking();
-    translationCache = null;
-    document.getElementById('pull-refresh-indicator')?.classList.remove('visible');
-    try { await loadDigest(true); }
-    finally { setTimeout(() => { pullRefreshLocked = false; }, 1200); }
-  }
-  function copyStory(btn) {
-    const headline = btn.dataset.headline || '';
-    const summary = btn.dataset.summary || '';
-    const url = btn.dataset.url || '';
-    const tag = btn.dataset.tag || '';
-    const linkPart = url ? ` [(link)](${url})` : '';
-    const tagPart = tag ? ` #${tag}` : '';
-    const text = `${headline}${headline && summary ? '\n' : ''}${summary}${linkPart}${tagPart}`;
-    const finish = () => {
-      btn.classList.add('copied');
-      const origTitle = btn.title;
-      btn.title = 'Copied!';
-      setTimeout(() => { btn.classList.remove('copied'); btn.title = origTitle; }, 2000);
-    };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
-    else fallbackCopy(text, finish);
-  }
-  function fallbackCopy(text, cb) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); cb(); } catch {}
-    document.body.removeChild(ta);
-  }
-  async function sha256Hex(text) {
-    if (!window.crypto?.subtle || !window.TextEncoder) return null;
-    const bytes = new TextEncoder().encode(text);
-    const hash = await crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  async function getTtsCacheKey(text, lang) {
-    const raw = `${lang}::${text}`;
-    return await sha256Hex(raw) || btoa(unescape(encodeURIComponent(raw))).slice(0, 120);
-  }
-  async function getCachedTtsBlob(cacheKey) {
-    if (memoryTtsCache.has(cacheKey)) return memoryTtsCache.get(cacheKey);
-    if (!('caches' in window)) return null;
-    const cache = await caches.open(TTS_CACHE_NAME);
-    const hit = await cache.match(`/__tts_cache__/${cacheKey}`);
-    if (!hit) return null;
-    const blob = await hit.blob();
-    memoryTtsCache.set(cacheKey, blob);
-    return blob;
-  }
-  async function saveCachedTtsBlob(cacheKey, blob) {
-    memoryTtsCache.set(cacheKey, blob);
-    if (!('caches' in window)) return;
-    const cache = await caches.open(TTS_CACHE_NAME);
-    await cache.put(`/__tts_cache__/${cacheKey}`, new Response(blob, { headers: { 'Content-Type': blob.type || 'audio/wav' } }));
-  }
-  function clearTtsPlayPrompt() {
-    if (ttsPlayPromptEl) { ttsPlayPromptEl.remove(); ttsPlayPromptEl = null; }
-  }
-  function finishSpeak(btn, id) {
-    if (speakingId === id) speakingId = null;
-    if (btn) {
-      btn.classList.remove('speaking');
-      btn.title = id === '__digest__' ? t('playDigest') : 'Read aloud';
-    }
-    currentAudio = null;
-    clearTtsPlayPrompt();
-    updateMetaLine();
-  }
-  function showTtsPlayPrompt(btn, audio) {
-    clearTtsPlayPrompt();
-    const prompt = document.createElement('span');
-    prompt.className = 'tts-play-prompt';
-    prompt.innerHTML = `<span>${t('tapAgainToPlay')}</span><button type="button">${t('playAudio')}</button>`;
-    const action = prompt.querySelector('button');
-    action.addEventListener('click', async () => {
-      try { await audio.play(); clearTtsPlayPrompt(); } catch (err) { console.warn('[tts] retry play blocked:', err); }
-    });
-    const footer = btn.closest('.story-footer') || document.querySelector('.masthead-controls .control-group');
-    if (footer) footer.appendChild(prompt);
-    ttsPlayPromptEl = prompt;
-  }
-  async function playTtsBlob(blob, btn, id) {
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    currentAudio = audio;
-    audio.preload = 'auto';
-    const cleanup = () => { URL.revokeObjectURL(url); finishSpeak(btn, id); };
-    audio.onended = cleanup;
-    audio.onerror = cleanup;
-    try { await audio.play(); }
-    catch (err) { console.warn('[tts] play blocked or failed:', err); showTtsPlayPrompt(btn, audio); }
-  }
-  function stopSpeaking() {
-    clearTtsPlayPrompt();
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.src = '';
-      currentAudio = null;
-    }
-    speakingId = null;
-    document.querySelectorAll('.story-speak-btn.speaking, .digest-speak-btn.speaking').forEach(b => {
-      b.classList.remove('speaking');
-      b.title = b.id === 'digest-speak-btn' ? t('playDigest') : 'Read aloud';
-    });
-    updateMetaLine();
-  }
-  async function startGeminiTts(text, id, btn) {
-    if (!text) return;
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
-    const cacheKey = await getTtsCacheKey(text, lang);
-    const cached = await getCachedTtsBlob(cacheKey);
-    if (cached) {
-      if (speakingId !== id) return;
-      return playTtsBlob(cached, btn, id);
-    }
-    const res = await fetch('/api/tts', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang }) });
-    if (!res.ok) throw new Error(`TTS ${res.status}`);
-    if (speakingId !== id) return;
-    const blob = await res.blob();
-    await saveCachedTtsBlob(cacheKey, blob);
-    if (speakingId !== id) return;
-    await playTtsBlob(blob, btn, id);
-  }
-  async function speakStory(btn) {
-    const id = btn.dataset.id;
-    const text = btn.dataset.text;
-    const wasPlaying = speakingId === id;
-    stopSpeaking();
-    if (wasPlaying || !id || !text) return;
-    speakingId = id;
-    btn.classList.add('speaking');
-    btn.title = 'Stop reading';
-    try { await startGeminiTts(text, id, btn); }
-    catch (err) { console.error('[tts] Gemini TTS failed:', err); finishSpeak(btn, id); }
-  }
-  function buildDigestSpeakText() {
-    if (!currentDigestData) return '';
-    const parts = [];
-    const intl = currentDigestData.international || [];
-    const local = currentDigestData.local || [];
-    if (intl.length) {
-      parts.push(t('international'));
-      intl.forEach(c => {
-        const { headline, summary } = getDisplayText(c);
-        parts.push(headline);
-        if (summary) parts.push(summary);
-      });
-    }
-    if (local.length) {
-      parts.push(t('localAudio'));
-      local.forEach(c => {
-        const { headline, summary } = getDisplayText(c);
-        parts.push(headline);
-        if (summary) parts.push(summary);
-      });
-    }
-    return parts.filter(Boolean).join('. ');
-  }
-  async function speakEntireDigest() {
-    const btn = document.getElementById('digest-speak-btn');
-    const id = '__digest__';
-    const wasPlaying = speakingId === id;
-    stopSpeaking();
-    if (wasPlaying || !currentDigestData) return;
-    const text = buildDigestSpeakText();
-    if (!text) return;
-    speakingId = id;
-    btn.classList.add('speaking');
-    btn.title = t('stopDigest');
-    updateMetaLine();
-    try { await startGeminiTts(text, id, btn); }
-    catch (err) { console.error('[tts] full digest failed:', err); finishSpeak(btn, id); }
-  }
-  function renderDigest(data) {
-    const seenSet = new Set(Object.keys(getSeenHeadlines()));
-    const intl = renderSection(t('international'), data.international, 'international', seenSet);
-    const local = renderSection(t('hongKong'), data.local, 'local', seenSet);
-    if (!intl && !local) return `<div class="state-box"><h2>${t('noStoriesTitle')}</h2><p>${t('noStoriesBody')}</p></div>`;
-    markHeadlinesSeen([...(data.international || []), ...(data.local || [])].map(s => s.headline));
-    return intl + local;
-  }
-  async function loadDigest(forceLatest = false) {
-    const main = document.getElementById('main-content');
-    const meta = document.getElementById('meta-line');
-    main.innerHTML = `<div class="state-box"><div class="spinner"></div><h2>${t('loadingTitle')}</h2><p>${t('loadingBody')}</p></div>`;
-    try {
-      if (forceLatest) {
-        const resetRes = await fetch('/api/digest?reset=true');
-        if (!resetRes.ok) throw new Error(`API returned ${resetRes.status}`);
-      }
-      const res = await fetch('/api/digest');
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
-      const data = await res.json();
-      currentDigestData = data;
-      currentGeneratedAt = data.generatedAt;
-      translationCache = loadXlatCache(data.generatedAt);
-      updateMetaLine();
-      document.getElementById('api-link').href = '/api/digest';
-      main.innerHTML = renderDigest(data);
-      if (currentLang === 'zh' && !translationCache) {
-        currentLang = 'en';
-        document.getElementById('lang-en')?.classList.add('active');
-        document.getElementById('lang-zh')?.classList.remove('active');
-        setLang('zh');
-      }
-    } catch (err) {
-      meta.textContent = t('errMeta');
-      main.innerHTML = `<div class="state-box"><h2>${t('errTitle')}</h2><p>${err.message}</p><p style="margin-top:0.5rem">${t('errRetry')}</p></div>`;
-    }
-  }
-  function attachPullToRefresh() {
-    const supportsTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    const indicator = document.getElementById('pull-refresh-indicator');
-    if (!supportsTouch) {
-      if (indicator) indicator.style.display = 'none';
-      return;
-    }
-    const showIndicator = show => indicator?.classList.toggle('visible', show);
-    window.addEventListener('touchstart', e => {
-      if (window.scrollY <= 0) { pullStartY = e.touches[0].clientY; pullArmed = false; }
-      else { pullStartY = null; pullArmed = false; }
-    }, { passive:true });
-    window.addEventListener('touchmove', e => {
-      if (pullStartY == null || pullRefreshLocked) return;
-      const dy = e.touches[0].clientY - pullStartY;
-      if (window.scrollY <= 0 && dy > 75) { pullArmed = true; showIndicator(true); }
-      else if (dy < 40) { pullArmed = false; showIndicator(false); }
-    }, { passive:true });
-    window.addEventListener('touchend', () => {
-      if (pullArmed && !pullRefreshLocked) handleRefresh();
-      pullStartY = null; pullArmed = false;
-      setTimeout(() => showIndicator(false), 300);
-    }, { passive:true });
-  }
-  (function restoreLang() {
-    const saved = loadLang();
-    if (saved === 'zh') {
-      currentLang = 'zh';
-      document.getElementById('lang-en')?.classList.remove('active');
-      document.getElementById('lang-zh')?.classList.add('active');
-    }
-    updateMetaLine();
-  })();
-  attachPullToRefresh();
-  loadDigest();
+  let currentDigestData = null, currentLang = 'en', translationCache = null, currentGeneratedAt = null, speakingId = null, currentAudio = null, ttsPlayPromptEl = null, pullRefreshLocked = false, pullStartY = null, pullArmed = false;
+  const UI = { en:{updated:'Updated',learnMore:'Learn more →',firstReported:'First reported',breaking:'Breaking',newBadge:'New',international:'International',hongKong:'Hong Kong',localAudio:'Local',playDigest:'Play digest',stopDigest:'Stop digest',loadingTitle:'Fetching the latest digest…',loadingBody:'This usually takes a minute.',noStoriesTitle:'No stories yet',noStoriesBody:'The digest is being generated. Check back in a moment.',errTitle:'Something went wrong',errRetry:'Try refreshing, or check back in a few minutes.',errMeta:'Could not load digest',pullPrompt:'Release to refresh',tapAgainToPlay:'Tap again to play',playAudio:'Play audio'}, zh:{updated:'更新於',learnMore:'了解更多 →',firstReported:'首報',breaking:'突發',newBadge:'最新',international:'國際',hongKong:'香港',localAudio:'本地',playDigest:'播放摘要',stopDigest:'停止播放',loadingTitle:'正在載入最新摘要…',loadingBody:'通常只需幾秒鐘。',noStoriesTitle:'暫無新聞',noStoriesBody:'摘要正在生成中，請稍後再查看。',errTitle:'發生錯誤',errRetry:'請重新整理，或稍後再試。',errMeta:'無法載入摘要',pullPrompt:'放手即可更新',tapAgainToPlay:'再按一次播放',playAudio:'播放音訊'} };
+  const SEEN_TTL_MS = 36*60*60*1000, LS_LANG='dp_lang', LS_XLAT_PFX='dp_xlat_', TTS_CACHE_NAME='dp-tts-v1', memoryTtsCache = new Map();
+  const t = key => UI[currentLang]?.[key] ?? UI.en[key] ?? key;
+  function getSeenHeadlines(){ try{ const raw=JSON.parse(localStorage.getItem('dp_seen')||'{}'); const cutoff=Date.now()-SEEN_TTL_MS; const pruned={}; for(const [k,v] of Object.entries(raw)) if(v>cutoff) pruned[k]=v; return pruned; }catch{return{};} }
+  function markHeadlinesSeen(headlines){ try{ const seen=getSeenHeadlines(); const now=Date.now(); for(const h of headlines) if(!seen[h]) seen[h]=now; localStorage.setItem('dp_seen', JSON.stringify(seen)); }catch{} }
+  const saveLang=lang=>{ try{ localStorage.setItem(LS_LANG,lang);}catch{} }; const loadLang=()=>{ try{return localStorage.getItem(LS_LANG)||'en';}catch{return'en';} };
+  function saveXlatCache(generatedAt, cache){ try{ const target=LS_XLAT_PFX+generatedAt; const keys=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith(LS_XLAT_PFX)&&k!==target) keys.push(k);} keys.forEach(k=>localStorage.removeItem(k)); localStorage.setItem(target, JSON.stringify(cache)); }catch{} }
+  function loadXlatCache(generatedAt){ try{ const raw=localStorage.getItem(LS_XLAT_PFX+generatedAt); return raw?JSON.parse(raw):null; }catch{return null;} }
+  function fmtDate(iso){ if(!iso) return ''; return new Date(iso).toLocaleString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  function fmtPublished(iso){ if(!iso) return null; const d=new Date(iso); if(isNaN(d.getTime())) return null; return `${d.toLocaleString(undefined,{hour:'2-digit',minute:'2-digit'})} · ${d.toLocaleString(undefined,{day:'numeric',month:'short'})}`; }
+  function renderChips(sources){ return sources.map(s=>s.paywalled?`<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`:!s.url?`<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`:`<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`).join(''); }
+  function escAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/\"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function getDisplayText(c){ if(currentLang==='zh'&&translationCache?.[c.id]) return {headline:translationCache[c.id].headline, summary:translationCache[c.id].summary}; return {headline:c.headline, summary:c.summary}; }
+  function renderCluster(c, tag, isNew){ const {headline:displayHeadline, summary:displaySummary}=getDisplayText(c); const breakingBadge=c.isBreaking?`<span class="breaking-badge">${t('breaking')}</span>`:''; const newBadge=isNew?`<span class="new-badge">${t('newBadge')}</span>`:''; const badge=breakingBadge||newBadge; const headlineHtml=c.readUrl?`${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${displayHeadline}</a>`:`${badge}${displayHeadline}`; const pubTime=fmtPublished(c.publishedAt); const timeHtml=pubTime?`<time class="story-time">${t('firstReported')} ${pubTime}</time>`:''; const learnMoreHtml=c.learnMoreUrl?`<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>`:''; const copyBtn=`<button type="button" class="story-copy-btn" data-headline="${escAttr(displayHeadline)}" data-summary="${escAttr(displaySummary||'')}" data-url="${escAttr(c.learnMoreUrl||c.readUrl||'')}" data-tag="${escAttr(tag||'')}" onclick="copyStory(this)" title="Copy story"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/></svg></button>`; const speakText=`${displayHeadline?displayHeadline+'. ':''}${displaySummary||''}`; const speakBtn=`<button type="button" class="story-speak-btn" data-id="${escAttr(c.id)}" data-text="${escAttr(speakText)}" onclick="speakStory(this)" title="Read aloud"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg></button>`; const footer=(learnMoreHtml||copyBtn||speakBtn)?`<div class="story-footer">${learnMoreHtml}${copyBtn}${speakBtn}</div>`:''; return `<article class="story-card"><h2 class="story-headline">${headlineHtml}</h2>${timeHtml}<p class="story-summary">${displaySummary||''}</p><div class="story-chips">${renderChips(c.sources)}</div>${footer}</article>`; }
+  function renderSection(label, clusters, tag, seenSet){ if(!clusters||clusters.length===0) return ''; return `<div class="section-header"><span class="section-label">${label}</span><span class="section-rule"></span></div>${clusters.map(c=>renderCluster(c, tag, !seenSet.has(c.headline))).join('')}`; }
+  function updateMetaLine(){ const meta=document.getElementById('meta-line'); if(meta&&currentGeneratedAt) meta.textContent=`${t('updated')} ${fmtDate(currentGeneratedAt)}`; const digestLabel=document.getElementById('digest-speak-label'); if(digestLabel) digestLabel.textContent=speakingId==='__digest__'?t('stopDigest'):t('playDigest'); const pull=document.getElementById('pull-refresh-indicator'); if(pull) pull.textContent=t('pullPrompt'); }
+  async function setLang(lang){ if(lang===currentLang && !(lang==='zh' && !translationCache)) return; stopSpeaking(); const btnEn=document.getElementById('lang-en'); const btnZh=document.getElementById('lang-zh'); const main=document.getElementById('main-content'); const bar=document.getElementById('translating-bar'); if(lang==='zh'){ if(!currentDigestData) return; btnEn.disabled=btnZh.disabled=true; btnZh.textContent='…'; if(!translationCache){ if(main) main.classList.add('translating'); if(bar) bar.classList.add('visible'); const items=[...(currentDigestData.international||[]), ...(currentDigestData.local||[])].map(c=>({id:c.id, headline:c.headline, summary:c.summary||''})); try{ const res=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}); if(!res.ok) throw new Error(`translate API ${res.status}`); const data=await res.json(); translationCache=Object.fromEntries((data.items||[]).map(it=>[it.id,it])); if(currentGeneratedAt) saveXlatCache(currentGeneratedAt, translationCache); }catch(err){ console.error('[lang] translation failed:', err); if(main) main.classList.remove('translating'); if(bar) bar.classList.remove('visible'); btnEn.disabled=btnZh.disabled=false; btnZh.textContent='中'; return; } if(main) main.classList.remove('translating'); if(bar) bar.classList.remove('visible'); } currentLang='zh'; saveLang('zh'); btnZh.textContent='中'; btnZh.classList.add('active'); btnEn.classList.remove('active'); btnEn.disabled=btnZh.disabled=false; } else { currentLang='en'; saveLang('en'); btnEn.classList.add('active'); btnZh.classList.remove('active'); } updateMetaLine(); if(currentDigestData) document.getElementById('main-content').innerHTML=renderDigest(currentDigestData); }
+  async function handleRefresh(){ if(pullRefreshLocked) return; pullRefreshLocked=true; stopSpeaking(); translationCache=null; document.getElementById('pull-refresh-indicator')?.classList.remove('visible'); try{ await loadDigest(true); } finally { setTimeout(()=>{ pullRefreshLocked=false; },1200); } }
+  function copyStory(btn){ const headline=btn.dataset.headline||''; const summary=btn.dataset.summary||''; const url=btn.dataset.url||''; const tag=btn.dataset.tag||''; const linkPart=url?` [(link)](${url})`:''; const tagPart=tag?` #${tag}`:''; const text=`${headline}${headline&&summary?'\n':''}${summary}${linkPart}${tagPart}`; const finish=()=>{ btn.classList.add('copied'); const origTitle=btn.title; btn.title='Copied!'; setTimeout(()=>{ btn.classList.remove('copied'); btn.title=origTitle; },2000); }; if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(finish).catch(()=>fallbackCopy(text, finish)); else fallbackCopy(text, finish); }
+  function fallbackCopy(text, cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.cssText='position:fixed;opacity:0;top:0;left:0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); cb(); }catch{} document.body.removeChild(ta); }
+  async function sha256Hex(text){ if(!window.crypto?.subtle || !window.TextEncoder) return null; const bytes=new TextEncoder().encode(text); const hash=await crypto.subtle.digest('SHA-256', bytes); return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+  async function getTtsCacheKey(text, lang){ const raw=`${lang}::${text}`; return await sha256Hex(raw) || btoa(unescape(encodeURIComponent(raw))).slice(0,120); }
+  async function getCachedTtsBlob(cacheKey){ if(memoryTtsCache.has(cacheKey)) return memoryTtsCache.get(cacheKey); if(!('caches' in window)) return null; const cache=await caches.open(TTS_CACHE_NAME); const hit=await cache.match(`/__tts_cache__/${cacheKey}`); if(!hit) return null; const blob=await hit.blob(); memoryTtsCache.set(cacheKey, blob); return blob; }
+  async function saveCachedTtsBlob(cacheKey, blob){ memoryTtsCache.set(cacheKey, blob); if(!('caches' in window)) return; const cache=await caches.open(TTS_CACHE_NAME); await cache.put(`/__tts_cache__/${cacheKey}`, new Response(blob,{headers:{'Content-Type':blob.type||'audio/wav'}})); }
+  function clearTtsPlayPrompt(){ if(ttsPlayPromptEl){ ttsPlayPromptEl.remove(); ttsPlayPromptEl=null; } }
+  function finishSpeak(btn, id){ if(speakingId===id) speakingId=null; if(btn){ btn.classList.remove('speaking'); btn.title=id==='__digest__'?t('playDigest'):'Read aloud'; } currentAudio=null; clearTtsPlayPrompt(); updateMetaLine(); }
+  function showTtsPlayPrompt(btn, audio){ clearTtsPlayPrompt(); const prompt=document.createElement('span'); prompt.className='tts-play-prompt'; prompt.innerHTML=`<span>${t('tapAgainToPlay')}</span><button type="button">${t('playAudio')}</button>`; prompt.querySelector('button').addEventListener('click', async()=>{ try{ await audio.play(); clearTtsPlayPrompt(); }catch(err){ console.warn('[tts] retry play blocked:', err); } }); const footer=btn.closest('.story-footer')||document.querySelector('.masthead-controls .control-group'); if(footer) footer.appendChild(prompt); ttsPlayPromptEl=prompt; }
+  async function playTtsBlob(blob, btn, id){ const url=URL.createObjectURL(blob); const audio=new Audio(url); currentAudio=audio; audio.preload='auto'; const cleanup=()=>{ URL.revokeObjectURL(url); finishSpeak(btn, id); }; audio.onended=cleanup; audio.onerror=cleanup; try{ await audio.play(); }catch(err){ console.warn('[tts] play blocked or failed:', err); showTtsPlayPrompt(btn, audio); } }
+  function stopSpeaking(){ clearTtsPlayPrompt(); if(currentAudio){ currentAudio.pause(); currentAudio.src=''; currentAudio=null; } speakingId=null; document.querySelectorAll('.story-speak-btn.speaking, .digest-speak-btn.speaking').forEach(b=>{ b.classList.remove('speaking'); b.title=b.id==='digest-speak-btn'?t('playDigest'):'Read aloud'; }); updateMetaLine(); }
+  async function startGeminiTts(text, id, btn){ if(!text) return; const lang=currentLang==='zh'?'zh':'en'; const cacheKey=await getTtsCacheKey(text, lang); const cached=await getCachedTtsBlob(cacheKey); if(cached){ if(speakingId!==id) return; return playTtsBlob(cached, btn, id); } const res=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,2800), lang})}); if(!res.ok) throw new Error(`TTS ${res.status}`); if(speakingId!==id) return; const blob=await res.blob(); await saveCachedTtsBlob(cacheKey, blob); if(speakingId!==id) return; await playTtsBlob(blob, btn, id); }
+  async function speakStory(btn){ const id=btn.dataset.id; const text=btn.dataset.text; const wasPlaying=speakingId===id; stopSpeaking(); if(wasPlaying||!id||!text) return; speakingId=id; btn.classList.add('speaking'); btn.title='Stop reading'; try{ await startGeminiTts(text, id, btn); }catch(err){ console.error('[tts] Gemini TTS failed:', err); finishSpeak(btn, id); } }
+  function buildDigestSpeakText(){ if(!currentDigestData) return ''; const parts=[]; const intl=currentDigestData.international||[]; const local=currentDigestData.local||[]; if(intl.length){ parts.push(t('international')); intl.forEach(c=>{ const {headline,summary}=getDisplayText(c); parts.push(headline); if(summary) parts.push(summary); }); } if(local.length){ parts.push(t('localAudio')); local.forEach(c=>{ const {headline,summary}=getDisplayText(c); parts.push(headline); if(summary) parts.push(summary); }); } return parts.filter(Boolean).join('. '); }
+  async function speakEntireDigest(){ const btn=document.getElementById('digest-speak-btn'); const id='__digest__'; const wasPlaying=speakingId===id; stopSpeaking(); if(wasPlaying||!currentDigestData) return; const text=buildDigestSpeakText(); if(!text) return; speakingId=id; btn.classList.add('speaking'); btn.title=t('stopDigest'); updateMetaLine(); try{ await startGeminiTts(text, id, btn); }catch(err){ console.error('[tts] full digest failed:', err); finishSpeak(btn, id); } }
+  function renderDigest(data){ const seenSet=new Set(Object.keys(getSeenHeadlines())); const intl=renderSection(t('international'), data.international, 'international', seenSet); const local=renderSection(t('hongKong'), data.local, 'local', seenSet); if(!intl&&!local) return `<div class="state-box"><h2>${t('noStoriesTitle')}</h2><p>${t('noStoriesBody')}</p></div>`; markHeadlinesSeen([...(data.international||[]), ...(data.local||[])].map(s=>s.headline)); return intl+local; }
+  async function loadDigest(forceLatest=false){ const main=document.getElementById('main-content'); const meta=document.getElementById('meta-line'); main.innerHTML=`<div class="state-box"><div class="spinner"></div><h2>${t('loadingTitle')}</h2><p>${t('loadingBody')}</p></div>`; try{ if(forceLatest){ const resetRes=await fetch('/api/digest?reset=true'); if(!resetRes.ok) throw new Error(`API returned ${resetRes.status}`); } const res=await fetch('/api/digest'); if(!res.ok) throw new Error(`API returned ${res.status}`); const data=await res.json(); currentDigestData=data; currentGeneratedAt=data.generatedAt; translationCache=loadXlatCache(data.generatedAt); updateMetaLine(); document.getElementById('api-link').href='/api/digest'; main.innerHTML=renderDigest(data); if(currentLang==='zh'&&!translationCache){ currentLang='en'; document.getElementById('lang-en')?.classList.add('active'); document.getElementById('lang-zh')?.classList.remove('active'); await setLang('zh'); } }catch(err){ meta.textContent=t('errMeta'); main.innerHTML=`<div class="state-box"><h2>${t('errTitle')}</h2><p>${err.message}</p><p style="margin-top:0.5rem">${t('errRetry')}</p></div>`; } }
+  function attachPullToRefresh(){ const supportsTouch=('ontouchstart' in window)||(navigator.maxTouchPoints>0); const indicator=document.getElementById('pull-refresh-indicator'); if(!supportsTouch){ if(indicator) indicator.style.display='none'; return; } const showIndicator=show=>indicator?.classList.toggle('visible',show); window.addEventListener('touchstart', e=>{ if(window.scrollY<=0){ pullStartY=e.touches[0].clientY; pullArmed=false; } else { pullStartY=null; pullArmed=false; } }, {passive:true}); window.addEventListener('touchmove', e=>{ if(pullStartY==null||pullRefreshLocked) return; const dy=e.touches[0].clientY-pullStartY; if(window.scrollY<=0&&dy>75){ pullArmed=true; showIndicator(true); } else if(dy<40){ pullArmed=false; showIndicator(false); } }, {passive:true}); window.addEventListener('touchend', ()=>{ if(pullArmed&&!pullRefreshLocked) handleRefresh(); pullStartY=null; pullArmed=false; setTimeout(()=>showIndicator(false),300); }, {passive:true}); }
+  function bindStaticControls(){ document.getElementById('digest-speak-btn')?.addEventListener('click', e=>{ e.preventDefault(); speakEntireDigest(); }); document.getElementById('lang-en')?.addEventListener('click', e=>{ e.preventDefault(); setLang('en'); }); document.getElementById('lang-zh')?.addEventListener('click', e=>{ e.preventDefault(); setLang('zh'); }); }
+  (function restoreLang(){ const saved=loadLang(); if(saved==='zh'){ currentLang='zh'; document.getElementById('lang-en')?.classList.remove('active'); document.getElementById('lang-zh')?.classList.add('active'); } updateMetaLine(); })();
+  window.setLang=setLang; window.speakEntireDigest=speakEntireDigest; window.speakStory=speakStory; window.copyStory=copyStory;
+  bindStaticControls(); attachPullToRefresh(); loadDigest();
 </script>
 </body>
 </html>
