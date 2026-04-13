@@ -446,8 +446,8 @@ async function runInlineScrape() {
   );
 
   const clusters    = buildClusters(enrichedFinal);
-  const intlScored  = scoreClusters(clusters, 'international');
-  const localScored = scoreClusters(clusters, 'local');
+  const intlScored  = scoreClusters(clusters, 'international', STORY_COUNTS.intl);
+  const localScored = scoreClusters(clusters, 'local',         STORY_COUNTS.local);
 
   const payload = {
     scrapedAt:     new Date().toISOString(),
