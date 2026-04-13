@@ -50,7 +50,7 @@ const DIGEST_TTL  = 20 * 60; // 20 minutes
 const SCRAPED_TTL = 20 * 60; // 20 minutes
 
 // Rolling digest: always show the top N stories within the staleness window.
-const STORY_COUNTS = { intl: 5, local: 3 };
+const STORY_COUNTS = { intl: 5, local: 2 };
 
 // Stories older than this are aged out of the digest.
 const STALE_WINDOW_MS = 36 * 60 * 60 * 1000; // 36 hours
