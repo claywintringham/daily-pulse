@@ -131,15 +131,23 @@ function sanitiseExtract(text) {
     .replace(/\d+:\d+\s*[•·]\s*Source:[^\n]*/g, '')
     // Repeated "Exclusive:" video-embed labels left by CNN player
     .replace(/(Exclusive:[^\n]{0,120}\n?){2,}/g, '$1')
-    // BBC / wire-agency article preamble:
+    // BBC / wire-agency article preamble at start of text:
     //   "N time-units ago" + optional byline + image credit + caption
     //   e.g. "4 hours agoLyse DoucetChief international correspondent,
     //         in IslamabadGetty ImagesFile photo of JD Vance … Hungary"
     .replace(/^\d+\s+\w+\s+ago[\s\S]{0,600}?(?:Getty Images?|AFP|Reuters|EPA)[^\n.]{0,300}\.?\s*/i, '')
     // Fallback: bare relative timestamp at start if no image credit followed above
     .replace(/^\d+\s+(?:second|minute|hour|day|week)s?\s+ago\s*/im, '')
+    // BBC inline timestamp + byline injected mid-text (e.g. after a pull-quote
+    // or question: "Will it work?2 hours agoPaul AdamsDiplomatic correspondentReuters…")
+    // Strips: "Nunit ago" + up to 200 chars of byline junk (name, title, agency).
+    .replace(/\d+\s+(?:second|minute|hour|day|week)s?\s+ago.{0,200}?(?=[A-Z][^A-Z])/g, '')
     // Orphaned Getty Images credit line anywhere in the extract
     .replace(/\bGetty Images?[^\n.]{0,250}\.?\s*/gi, '')
+    // Dangling wire-agency byline fragments: "Paul AdamsDiplomatic correspondent"
+    // pattern — a run of Title-Case words followed immediately (no space) by
+    // another Title-Case run is a name+title glued together by missing whitespace.
+    .replace(/(?<=[.?!])\s*[A-Z][a-z]+ [A-Z][a-z]+(?:[A-Z][a-z]+ ?){1,6}(?:correspondent|reporter|editor|analyst|bureau)[^\n.]{0,120}/g, '')
     // Collapse any resulting runs of whitespace
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -390,16 +398,34 @@ function headlineOverlap(h1, h2) {
 }
 
 /**
+ * Count how many outlet labels appear in both clusters (source overlap).
+ * Two clusters sharing 2+ outlets are almost certainly the same story even
+ * if their synthesised headlines are worded very differently.
+ */
+function sourceOverlap(a, b) {
+  const labelsA = new Set(a.members.map(m => m.label));
+  let shared = 0;
+  for (const m of b.members) if (labelsA.has(m.label)) shared++;
+  return shared;
+}
+
+/**
  * Remove duplicate clusters within a single bucket after summarisation.
- * Two clusters are duplicates when their synthesised headlines share ≥ 50 %
- * of tokens (Jaccard). Keeps whichever has more source members.
- * This catches cases where greedy single-link clustering splits a large story
- * into two clusters that only merge in the synthesised headline.
+ * Two clusters are considered duplicates when EITHER:
+ *   (a) headline Jaccard similarity ≥ 0.5, OR
+ *   (b) they share ≥ 2 outlet labels AND headline Jaccard ≥ 0.15
+ *       (same story, differently worded headline)
+ * Keeps whichever has more source members.
  */
 function deduplicateByHeadline(clusters, threshold = 0.5) {
   const kept = [];
   for (const c of clusters) {
-    const dupIdx = kept.findIndex(k => headlineOverlap(c.headline, k.headline) >= threshold);
+    const dupIdx = kept.findIndex(k => {
+      const overlap = headlineOverlap(c.headline, k.headline);
+      if (overlap >= threshold) return true;
+      if (overlap >= 0.15 && sourceOverlap(c, k) >= 2) return true;
+      return false;
+    });
     if (dupIdx === -1) {
       kept.push(c);
     } else {
@@ -559,8 +585,16 @@ export default async function handler(req, res) {
 
     console.log(`[digest] ${allClusters.length} cluster(s) before editorial filter`);
 
-    // ── 4. LLM editorial filter (combined buckets in one call) ──────────────
-    const editFiltered = await editorialFilter(allClusters);
+    // ── 4. LLM editorial filter + article prefetch (in parallel) ────────────
+    // enrichWithArticleContent mutates cluster objects in-place, so prefetching
+    // on allClusters is safe: excerpts for kept clusters are ready when
+    // editorialFilter resolves; excerpts for dropped clusters are discarded.
+    console.log('[digest] Running editorial filter + article prefetch in parallel…');
+    const [editFiltered] = await Promise.all([
+      editorialFilter(allClusters),
+      enrichWithArticleContent(allClusters),
+    ]);
+    console.log('[digest] Editorial filter + article enrichment done');
 
     // ── 4b. Staleness filter ─────────────────────────────────────────────────
     // Discard any cluster whose most recent member was published outside the
@@ -612,15 +646,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // ── 5. Enrich clusters with article content ─────────────────────────────
-    // Fetch the lead article for each cluster in parallel (best-effort: silent
-    // fail on timeout / bot-block). The excerpt is passed to summarizeClusters
-    // so Gemini can write summaries from real article text rather than titles.
-    console.log('[digest] Fetching article excerpts…');
-    await enrichWithArticleContent(filtered);
-    console.log('[digest] Article enrichment done');
-
-    // ── 6. Summarization (sequential to avoid Gemini rate-limit collisions) ───
+    // ── 5 → 6. Summarization (article excerpts already fetched in step 4) (sequential to avoid Gemini rate-limit collisions) ───
     // After summarisation, deduplicate within each bucket: greedy clustering
     // can split a large story into two clusters that share a synthesised headline.
     // After dedup, re-sort by baseScore descending so importance order is
