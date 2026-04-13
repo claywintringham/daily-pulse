@@ -333,24 +333,40 @@
     }
 
     .refresh-btn {
+      background: none;
+      border: none;
+      border-radius: 3px;
+      padding: 0.2rem 0.3rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      color: var(--ink-faint);
+      transition: color 0.12s, background 0.12s;
+    }
+
+    .refresh-btn:hover    { color: var(--ink); background: var(--chip-bg); }
+    .refresh-btn:disabled { opacity: 0.35; cursor: default; }
+
+    .play-all-btn {
       font-family: var(--ui);
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 600;
       letter-spacing: 0.03em;
       color: var(--ink-mid);
       background: none;
       border: 1px solid var(--rule);
       border-radius: 3px;
-      padding: 0.28rem 0.65rem;
+      padding: 0.22rem 0.6rem;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
+      gap: 0.25rem;
       transition: background 0.12s, color 0.12s, border-color 0.12s;
     }
 
-    .refresh-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
-    .refresh-btn:disabled { opacity: 0.45; cursor: default; }
+    .play-all-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
+    .play-all-btn:disabled { opacity: 0.45; cursor: default; }
+    .play-all-btn.playing  { color: var(--accent); border-color: var(--accent); }
 
     .lang-toggle {
       display: inline-flex;
@@ -408,13 +424,20 @@
     <p class="masthead-meta" id="meta-line">Loading…</p>
     <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
     <div class="masthead-controls">
-      <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()">
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
-          <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
-        </svg>
-        Get Latest
-      </button>
+      <div style="display:inline-flex;align-items:center;gap:0.5rem;">
+        <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()" title="Refresh digest" aria-label="Refresh digest">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+            <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+          </svg>
+        </button>
+        <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+          </svg>
+          Play All
+        </button>
+      </div>
       <div class="lang-toggle">
         <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
         <button id="lang-zh" onclick="setLang('zh')">中</button>
@@ -433,7 +456,7 @@
 </main>
 
 <footer class="container">
-  <p>Daily Pulse aggregates public headlines from AP, BBC, The Guardian, CNBC, RTHK, HKFP &amp; The Standard.
+  <p>Daily Pulse aggregates news headlines from public news outlets.
   Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
 </footer>
 
@@ -446,6 +469,8 @@
   let currentAudio       = null;   // HTMLAudioElement currently playing (desktop fallback)
   let audioCtx           = null;   // shared AudioContext for Web Audio API playback (iOS)
   let currentSource      = null;   // AudioBufferSourceNode currently playing
+  const ttsCache         = new Map(); // ArrayBuffer cache keyed by story id (session-local)
+  let playAllActive      = false;  // true while "Play All" is running
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -852,15 +877,18 @@
     } catch { ctx = null; }
 
     try {
-      const res = await fetch('/api/tts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, lang }),
-      });
-      if (!res.ok) throw new Error(`TTS ${res.status}`);
-      if (speakingId !== id) return;
-
-      const arrayBuffer = await res.arrayBuffer();
+      let arrayBuffer = ttsCache.get(id);
+      if (!arrayBuffer) {
+        const res = await fetch('/api/tts', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ text, lang }),
+        });
+        if (!res.ok) throw new Error(`TTS ${res.status}`);
+        if (speakingId !== id) return;
+        arrayBuffer = await res.arrayBuffer();
+        ttsCache.set(id, arrayBuffer);
+      }
       if (speakingId !== id) return;
 
       const cleanup = () => {
@@ -955,7 +983,21 @@
     return intl + local;
   }
 
-  // ── Fetch ──────────────────────────────────────────────────────────
+  // ── Fetch (SSE streaming + JSON fallback) ─────────────────────────
+  function _finishLoad(genAt) {
+    translationCache = loadXlatCache(genAt);
+    updateMetaLine();
+    document.getElementById('api-link').href = '/api/digest';
+    if (currentLang === 'zh' && !translationCache) {
+      currentLang = 'en';
+      const btnEn = document.getElementById('lang-en');
+      const btnZh = document.getElementById('lang-zh');
+      if (btnEn) btnEn.classList.add('active');
+      if (btnZh) btnZh.classList.remove('active');
+      setLang('zh');
+    }
+  }
+
   async function loadDigest() {
     const main = document.getElementById('main-content');
     const meta = document.getElementById('meta-line');
@@ -969,30 +1011,60 @@
     try {
       const res = await fetch('/api/digest');
       if (!res.ok) throw new Error(`API returned ${res.status}`);
-      const data = await res.json();
-      currentDigestData  = data;
-      currentGeneratedAt = data.generatedAt;
 
-      // Restore persisted translation cache for this exact digest version.
-      // If the digest has been regenerated (new generatedAt) this returns null
-      // and a fresh translation is triggered below.
-      translationCache = loadXlatCache(data.generatedAt);
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/event-stream')) {
+        // ── SSE streaming path ───────────────────────────────────────────
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let cleared = false;
+        if (!currentDigestData) currentDigestData = { international: [], local: [] };
 
-      updateMetaLine();
-      document.getElementById('api-link').href = '/api/digest';
-      main.innerHTML = renderDigest(data);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
 
-      // If the user left in Chinese but the cache is missing (new digest version),
-      // show English first so the page isn't blank-looking, then auto-translate.
-      // We temporarily set currentLang to 'en' so setLang('zh') doesn't
-      // short-circuit on the lang === currentLang guard.
-      if (currentLang === 'zh' && !translationCache) {
-        currentLang = 'en';
-        const btnEn = document.getElementById('lang-en');
-        const btnZh = document.getElementById('lang-zh');
-        if (btnEn) btnEn.classList.add('active');
-        if (btnZh) btnZh.classList.remove('active');
-        setLang('zh'); // now proceeds cleanly, shows translating bar
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (evt.type === 'section') {
+              if (!cleared) { main.innerHTML = ''; cleared = true; }
+              const { section, stories } = evt;
+              const seenSet = new Set(Object.keys(getSeenHeadlines()));
+              if (section === 'international') {
+                currentDigestData.international = stories;
+                const html = renderSection(t('international'), stories, 'international', seenSet);
+                if (html) main.insertAdjacentHTML('beforeend', html);
+              } else if (section === 'local') {
+                currentDigestData.local = stories;
+                const seenSet2 = new Set(Object.keys(getSeenHeadlines()));
+                const html = renderSection(t('hongKong'), stories, 'local', seenSet2);
+                if (html) main.insertAdjacentHTML('beforeend', html);
+                markHeadlinesSeen([
+                  ...(currentDigestData.international || []),
+                  ...(currentDigestData.local         || []),
+                ].map(s => s.headline));
+              }
+            } else if (evt.type === 'done') {
+              currentGeneratedAt = evt.generatedAt;
+              _finishLoad(evt.generatedAt);
+            }
+          }
+        }
+
+      } else {
+        // ── JSON fallback (cron warm, old API) ───────────────────────────
+        const data = await res.json();
+        currentDigestData  = data;
+        currentGeneratedAt = data.generatedAt;
+        main.innerHTML = renderDigest(data);
+        _finishLoad(data.generatedAt);
       }
     } catch (err) {
       meta.textContent = t('errMeta');
@@ -1004,10 +1076,139 @@
     }
   }
 
+  // ── Play All ──────────────────────────────────────────────────────
+  async function speakItemAsync(id, text) {
+    if (!playAllActive) return;
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    speakingId = id;
+    const existingBtn = document.querySelector(`.story-speak-btn[data-id="${CSS.escape(id)}"]`);
+    if (existingBtn) { existingBtn.classList.add('speaking'); existingBtn.title = 'Stop reading'; }
+
+    let ctx = null;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx = audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+    } catch { ctx = null; }
+
+    try {
+      let arrayBuffer = ttsCache.get(id);
+      if (!arrayBuffer) {
+        const res = await fetch('/api/tts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, lang }),
+        });
+        if (!res.ok) throw new Error(`TTS ${res.status}`);
+        if (!playAllActive || speakingId !== id) return;
+        arrayBuffer = await res.arrayBuffer();
+        ttsCache.set(id, arrayBuffer);
+      }
+      if (!playAllActive || speakingId !== id) return;
+
+      await new Promise(resolve => {
+        const cleanup = () => {
+          currentSource = null;
+          if (speakingId === id) {
+            speakingId = null;
+            if (existingBtn) { existingBtn.classList.remove('speaking'); existingBtn.title = 'Read aloud'; }
+          }
+          resolve();
+        };
+        if (ctx) {
+          ctx.decodeAudioData(arrayBuffer.slice(0))
+            .then(audioBuffer => {
+              if (!playAllActive) { resolve(); return; }
+              const source = ctx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(ctx.destination);
+              source.onended = cleanup;
+              source.start(0);
+              currentSource = source;
+            })
+            .catch(() => {
+              const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+              const burl = URL.createObjectURL(blob);
+              const a = new Audio(burl);
+              currentAudio = a;
+              a.onended = a.onerror = () => { URL.revokeObjectURL(burl); currentAudio = null; cleanup(); };
+              a.play().catch(cleanup);
+            });
+        } else {
+          const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+          const burl = URL.createObjectURL(blob);
+          const a = new Audio(burl);
+          currentAudio = a;
+          a.onended = a.onerror = () => { URL.revokeObjectURL(burl); currentAudio = null; cleanup(); };
+          a.play().catch(cleanup);
+        }
+      });
+    } catch (err) {
+      console.warn('[play-all] TTS error:', err.message);
+      speakingId = null;
+      if (existingBtn) { existingBtn.classList.remove('speaking'); existingBtn.title = 'Read aloud'; }
+    }
+  }
+
+  function announceLabelAsync(label) {
+    return new Promise(resolve => {
+      if (!window.speechSynthesis || !playAllActive) { resolve(); return; }
+      const utt = new SpeechSynthesisUtterance(label);
+      utt.lang  = currentLang === 'zh' ? 'zh-HK' : 'en-US';
+      utt.rate  = 1.0;
+      utt.onend = utt.onerror = resolve;
+      window.speechSynthesis.speak(utt);
+    });
+  }
+
+  function stopPlayAll() {
+    playAllActive = false;
+    stopSpeaking();
+    try { if (window.speechSynthesis?.speaking) window.speechSynthesis.cancel(); } catch {}
+    const btn = document.getElementById('play-all-btn');
+    if (btn) { btn.textContent = ''; btn.insertAdjacentHTML('afterbegin', '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg> Play All'); btn.classList.remove('playing'); btn.disabled = false; }
+  }
+
+  async function playAll() {
+    const btn = document.getElementById('play-all-btn');
+    if (playAllActive) { stopPlayAll(); return; }
+    if (!currentDigestData) return;
+
+    stopSpeaking();
+    playAllActive = true;
+    if (btn) { btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="2" width="4" height="12" rx="1"/></svg> Stop'; btn.classList.add('playing'); }
+
+    const intl  = currentDigestData.international || [];
+    const local = currentDigestData.local         || [];
+
+    for (const section of [['international', intl], ['local', local]]) {
+      if (!playAllActive) break;
+      const [tag, stories] = section;
+      if (!stories.length) continue;
+      const label = tag === 'international' ? t('international') : t('hongKong');
+      await announceLabelAsync(label);
+      for (const c of stories) {
+        if (!playAllActive) break;
+        const { headline, summary } = getDisplayText(c);
+        const text = (headline ? headline + '. ' : '') + (summary || '');
+        await speakItemAsync(c.id, text);
+      }
+    }
+
+    stopPlayAll();
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────
   // Restore language preference before first render so the UI buttons
   // and all t() calls reflect the correct language immediately.
   (function restoreLang() {
+    // Version migration: clear stale lang preference on app version change
+    const APP_VER = 'v2';
+    try {
+      if (localStorage.getItem('dp_app_ver') !== APP_VER) {
+        localStorage.removeItem(LS_LANG);
+        localStorage.setItem('dp_app_ver', APP_VER);
+      }
+    } catch {}
     const saved = loadLang();
     if (saved === 'zh') {
       currentLang = 'zh';
