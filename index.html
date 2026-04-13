@@ -469,7 +469,7 @@
   let currentAudio       = null;   // HTMLAudioElement currently playing (desktop fallback)
   let audioCtx           = null;   // shared AudioContext for Web Audio API playback (iOS)
   let currentSource      = null;   // AudioBufferSourceNode currently playing
-  const ttsCache         = new Map(); // ArrayBuffer cache keyed by story id (session-local)
+  const ttsCache         = new Map(); // ArrayBuffer cache keyed by `${id}:${lang}` (session-local)
   let playAllActive      = false;  // true while "Play All" is running
 
   // ── UI string translations ─────────────────────────────────────────
@@ -877,7 +877,8 @@
     } catch { ctx = null; }
 
     try {
-      let arrayBuffer = ttsCache.get(id);
+      const cacheKey = id + ':' + lang;
+      let arrayBuffer = ttsCache.get(cacheKey);
       if (!arrayBuffer) {
         const res = await fetch('/api/tts', {
           method:  'POST',
@@ -887,7 +888,7 @@
         if (!res.ok) throw new Error(`TTS ${res.status}`);
         if (speakingId !== id) return;
         arrayBuffer = await res.arrayBuffer();
-        ttsCache.set(id, arrayBuffer);
+        ttsCache.set(cacheKey, arrayBuffer);
       }
       if (speakingId !== id) return;
 
@@ -1092,7 +1093,8 @@
     } catch { ctx = null; }
 
     try {
-      let arrayBuffer = ttsCache.get(id);
+      const cacheKey = id + ':' + lang;
+      let arrayBuffer = ttsCache.get(cacheKey);
       if (!arrayBuffer) {
         const res = await fetch('/api/tts', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1101,7 +1103,7 @@
         if (!res.ok) throw new Error(`TTS ${res.status}`);
         if (!playAllActive || speakingId !== id) return;
         arrayBuffer = await res.arrayBuffer();
-        ttsCache.set(id, arrayBuffer);
+        ttsCache.set(cacheKey, arrayBuffer);
       }
       if (!playAllActive || speakingId !== id) return;
 
