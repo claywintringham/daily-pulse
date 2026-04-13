@@ -72,10 +72,15 @@ export default async function handler(req, res) {
     }
 
     // ── Step 2: RSS enrichment (parallel, one fetch per source) ────────────
+    // Skip sources whose items already carry publishedAt (API adapters like
+    // TVB Pearl/News, sitemap items, and RSS-fallback items from _base.js).
     const enriched = await Promise.all(
       adapterResults.map(async src => {
-        const def          = getById(src.sourceId);
-        const rssUrl       = def?.rssUrl ?? null;
+        const def    = getById(src.sourceId);
+        const rssUrl = def?.rssUrl ?? null;
+        if (!rssUrl || (src.items ?? []).some(item => item.publishedAt)) {
+          return src;
+        }
         const enrichedItems = await enrichWithRss(src.items ?? [], rssUrl);
         return { ...src, items: enrichedItems };
       })
