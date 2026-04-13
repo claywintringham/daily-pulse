@@ -2,14 +2,21 @@
 // Gemini 2.5 Flash TTS proxy for both English and Chinese Mandarin.
 // Accepts POST { text, lang }, returns audio/wav binary.
 //
-// Gemini auto-detects language from the input text, so the same model and
-// voice handle both EN and ZH without any special routing.
-// PCM output (24 kHz, mono, 16-bit) is wrapped in a WAV header server-side
-// so the browser's <Audio> element can play it directly.
+// Caches responses in Redis (1-hour TTL) — repeat plays are instant.
+// Stores raw Gemini PCM base64 (not the wrapped WAV) to minimise Redis usage.
+
+import { get as redisGet, set as redisSet } from '../lib/redis.js';
 
 export const config = { maxDuration: 20 };
 
-// ── PCM → WAV ──────────────────────────────────────────────────────────────
+// ── Tiny DJB2 hash for stable cache keys ──────────────────────────────────────
+function djb2(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
+  return (h >>> 0).toString(36);
+}
+
+// ── PCM → WAV ─────────────────────────────────────────────────────────────────
 function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
   const dataSize = pcm.length;
   const buf      = Buffer.alloc(44 + dataSize);
@@ -32,7 +39,7 @@ function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
   return buf;
 }
 
-// ── Handler ────────────────────────────────────────────────────────────────
+// ── Handler ────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -41,9 +48,28 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
-  const { text } = req.body ?? {};
+  const { text, lang = 'en' } = req.body ?? {};
   if (!text?.trim()) return res.status(400).json({ error: '`text` is required' });
 
+  const truncated  = text.slice(0, 3000);
+  const cacheKey   = `tts2:${djb2(truncated + '|' + lang)}`;
+
+  // ── Redis cache hit → instant playback ─────────────────────────────────────
+  try {
+    const cached = await redisGet(cacheKey);
+    if (cached?.pcm) {
+      const wav = pcmToWav(Buffer.from(cached.pcm, 'base64'));
+      res.setHeader('Content-Type',   'audio/wav');
+      res.setHeader('Content-Length', String(wav.length));
+      res.setHeader('Cache-Control',  'private, max-age=3600');
+      res.setHeader('X-Cache',        'HIT');
+      return res.status(200).send(wav);
+    }
+  } catch (e) {
+    console.warn('[tts] Redis read error (non-fatal):', e.message);
+  }
+
+  // ── Call Gemini TTS ─────────────────────────────────────────────────────────
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
               `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
@@ -52,7 +78,7 @@ export default async function handler(req, res) {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: text.slice(0, 3000) }] }],
+        contents: [{ parts: [{ text: truncated }] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -76,9 +102,16 @@ export default async function handler(req, res) {
     if (!b64) return res.status(500).json({ error: 'No audio data in Gemini response' });
 
     const wav = pcmToWav(Buffer.from(b64, 'base64'));
+
+    // ── Cache raw PCM base64 (1-hour TTL, fire-and-forget) ─────────────────
+    // Store PCM (not WAV) so we only keep ~75% of the decoded size in Redis.
+    redisSet(cacheKey, { pcm: b64 }, 3600)
+      .catch(e => console.warn('[tts] Redis write error (non-fatal):', e.message));
+
     res.setHeader('Content-Type',   'audio/wav');
     res.setHeader('Content-Length', String(wav.length));
-    res.setHeader('Cache-Control',  'private, max-age=300');
+    res.setHeader('Cache-Control',  'private, max-age=3600');
+    res.setHeader('X-Cache',        'MISS');
     return res.status(200).send(wav);
 
   } catch (err) {
