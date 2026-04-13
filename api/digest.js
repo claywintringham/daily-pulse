@@ -663,6 +663,9 @@ export default async function handler(req, res) {
     // No morning/evening split — the frontend tracks which stories are new
     // via localStorage and shows a "New" badge on first view.
     const finalLocal = summarisedLocal.slice(0, STORY_COUNTS.local);
+    // Stream local section so the client renders HK news without waiting for the
+    // 'done' event (mirrors how international is streamed immediately above).
+    sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
     console.log(`[digest] Rolling: ${finalIntl.length} intl, ${finalLocal.length} local`);
 
     // ── 7. Build response ───────────────────────────────────────────────────
