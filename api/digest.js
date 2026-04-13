@@ -258,7 +258,7 @@ async function fetchArticleExcerpt(url) {
         'User-Agent': 'Mozilla/5.0 (compatible; DailyPulse/1.0; +https://daily-pulse-theta.vercel.app)',
         'Accept':     'text/html',
       },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(3_000),
     });
     if (!res.ok) return null;
     const html = await res.text();
@@ -304,7 +304,7 @@ async function searchGuardianForExcerpt(headline) {
  * outcome) so the "Learn more" link is stable.  articleExcerpt may come from
  * a lower-ranked source if the top source times out or bot-blocks.
  */
-async function enrichWithArticleContent(clusters, concurrency = 6) {
+async function enrichWithArticleContent(clusters, concurrency = 8) {
   for (let i = 0; i < clusters.length; i += concurrency) {
     const batch = clusters.slice(i, i + concurrency);
     await Promise.all(batch.map(async c => {
