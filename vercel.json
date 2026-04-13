@@ -1,10 +1,12 @@
 {
   "functions": {
-    "api/scrape.js": { "maxDuration": 300 },
-    "api/digest.js": { "maxDuration": 120 }
+    "api/scrape.js":       { "maxDuration": 300 },
+    "api/digest.js":       { "maxDuration": 120 },
+    "api/cron-digest.js":  { "maxDuration": 130 }
   },
   "crons": [
-    { "path": "/api/scrape", "schedule": "30 22 * * *" },
-    { "path": "/api/scrape", "schedule": "30 9 * * *" }
+    { "path": "/api/scrape",      "schedule": "30 22 * * *" },
+    { "path": "/api/scrape",      "schedule": "30 9 * * *"  },
+    { "path": "/api/cron-digest", "schedule": "*/30 * * * *" }
   ]
 }
