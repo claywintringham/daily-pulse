@@ -1,10 +1,10 @@
 {
   "functions": {
     "api/scrape.js": { "maxDuration": 300 },
-    "api/digest.js": { "maxDuration": 120 }
+    "api/digest.js": { "maxDuration": 120 },
+    "api/prewarm.js": { "maxDuration": 300 }
   },
   "crons": [
-    { "path": "/api/scrape", "schedule": "30 22 * * *" },
-    { "path": "/api/scrape", "schedule": "30 9 * * *" }
+    { "path": "/api/prewarm", "schedule": "0 */3 * * *" }
   ]
 }
