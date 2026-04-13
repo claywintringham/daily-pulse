@@ -443,7 +443,9 @@
   let translationCache   = null;   // { [clusterId]: { headline, summary } }
   let currentGeneratedAt = null;
   let speakingId         = null;   // cluster id currently being read aloud, or null
-  let currentAudio       = null;   // HTMLAudioElement currently playing
+  let currentAudio       = null;   // HTMLAudioElement currently playing (desktop fallback)
+  let audioCtx           = null;   // shared AudioContext for Web Audio API playback (iOS)
+  let currentSource      = null;   // AudioBufferSourceNode currently playing
 
   // ── UI string translations ─────────────────────────────────────────
   const UI = {
@@ -805,6 +807,12 @@
   // Web Speech API is kept as a last-resort fallback if the API fails.
 
   function stopSpeaking() {
+    // Stop Web Audio API source (iOS path)
+    if (currentSource) {
+      try { currentSource.stop(); } catch {}
+      currentSource = null;
+    }
+    // Stop HTML Audio element (desktop fallback path)
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.src = '';
@@ -833,6 +841,16 @@
 
     const lang = currentLang === 'zh' ? 'zh' : 'en';
 
+    // ── CRITICAL: unlock AudioContext synchronously within the gesture handler ──
+    // On iOS, AudioContext must be created/resumed *before* any await — after an
+    // await the user-gesture context is lost and audio.play() silently fails.
+    let ctx = null;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx = audioCtx;
+      if (ctx.state === 'suspended') ctx.resume(); // fire-and-forget — no await
+    } catch { ctx = null; }
+
     try {
       const res = await fetch('/api/tts', {
         method:  'POST',
@@ -842,23 +860,53 @@
       if (!res.ok) throw new Error(`TTS ${res.status}`);
       if (speakingId !== id) return;
 
-      const blob  = await res.blob();
-      const url   = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudio = audio;
+      const arrayBuffer = await res.arrayBuffer();
+      if (speakingId !== id) return;
 
       const cleanup = () => {
-        URL.revokeObjectURL(url);
+        currentSource = null;
         if (speakingId === id) {
-          speakingId   = null;
-          currentAudio = null;
+          speakingId = null;
           btn.classList.remove('speaking');
           btn.title = 'Read aloud';
         }
       };
-      audio.onended = cleanup;
-      audio.onerror = cleanup;
-      audio.play().catch(cleanup);
+
+      // ── Primary: Web Audio API (works on iOS) ──────────────────────────────
+      if (ctx) {
+        try {
+          const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+          if (speakingId !== id) return;
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
+          source.onended = cleanup;
+          source.start(0);
+          currentSource = source;
+          return;
+        } catch (webAudioErr) {
+          console.warn('[tts] Web Audio failed, trying HTML Audio:', webAudioErr.message);
+        }
+      }
+
+      // ── Fallback: HTML Audio element (desktop) ─────────────────────────────
+      const blob  = new Blob([arrayBuffer], { type: 'audio/wav' });
+      const url   = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudio = audio;
+
+      const audioCleanup = () => {
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+        if (speakingId === id) {
+          speakingId = null;
+          btn.classList.remove('speaking');
+          btn.title = 'Read aloud';
+        }
+      };
+      audio.onended = audioCleanup;
+      audio.onerror = audioCleanup;
+      audio.play().catch(audioCleanup);
 
     } catch (err) {
       // Last-resort fallback: browser Web Speech API
