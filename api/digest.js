@@ -312,6 +312,17 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
       if (!urls.length) return;
       c._learnMoreUrl = urls[0]; // best URL for the "Learn more" link
 
+      // Use pre-fetched description if available (e.g. TVB Pearl/TVB API items)
+      // Avoids an outbound HTTP fetch when the adapter already returned article text.
+      const memberWithDesc = (c.members ?? []).find(m => m.description);
+      if (memberWithDesc) {
+        const sanitised = sanitiseExtract(memberWithDesc.description).slice(0, 1500);
+        if (sanitised.length > 80) {
+          c.articleExcerpt = sanitised;
+          return; // skip URL fetching
+        }
+      }
+
       // Try each free member URL in priority order
       for (const url of urls) {
         const excerpt = await fetchArticleExcerpt(url);
@@ -622,8 +633,12 @@ export default async function handler(req, res) {
     );
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
-    const summarisedIntl  = byScore(deduplicateByHeadline(noQuestions(await summarizeClusters(filteredIntl))));
-    const summarisedLocal = byScore(deduplicateByHeadline(noQuestions(await summarizeClusters(filteredLocal))));
+    const [intlResults, localResults] = await Promise.all([
+      summarizeClusters(filteredIntl),
+      summarizeClusters(filteredLocal),
+    ]);
+    const summarisedIntl  = byScore(deduplicateByHeadline(noQuestions(intlResults)));
+    const summarisedLocal = byScore(deduplicateByHeadline(noQuestions(localResults)));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
     // ── 6. Rolling top-N selection ──────────────────────────────────────────
