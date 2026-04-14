@@ -113,8 +113,18 @@ function pickLearnMoreUrl(c) {
  *   • Video chip text from CNN/NBC: "3:45 • Source: CNN"
  *   • Repeated "Exclusive:" video-embed labels from CNN player
  */
+// Live-blog closure patterns — BBC, Guardian, Al Jazeera etc. use these when
+// a live blog ends and the page becomes a redirect to a new one.
+const CLOSED_BLOG_RE = /^this (?:live )?blog (?:has now closed|is now closed|has closed|is closed)\b/i;
+
 function sanitiseExtract(text) {
   return text
+    // Closed live-blog notice at the start (BBC, Guardian, Al Jazeera, etc.)
+    // Strip the closure line so any real article content that follows can be used.
+    .replace(/^this (?:live )?blog (?:has now closed|is now closed|has closed|is closed)[^\n]*\n?/im, '')
+    .replace(/^this page is no longer being updated[^\n]*\n?/im, '')
+    // "Our [live] coverage [of X] continues here" redirect sentence
+    .replace(/our (?:live )?coverage(?:[^\n.]{0,120})?continues here\.?\s*/im, '')
     // AP wire template placeholders like [hour], [monthFull], [timezone], etc.
     .replace(/\[[a-zA-Z][a-zA-Z]*\]/g, '')
     // "Updated …" AP/CBS CMS timestamp line — nuke the entire line unconditionally.
@@ -263,6 +273,7 @@ async function fetchArticleExcerpt(url) {
     if (!res.ok) return null;
     const html = await res.text();
     const text = extractTextFromHtml(html, url); // pass URL so Readability can set baseURI
+    if (CLOSED_BLOG_RE.test(text)) return null; // closed live blog — content is unreliable
     return text.length > 80 ? text : null; // discard near-empty pages
   } catch {
     return null; // timeout, network error, CORS — silently skip
@@ -280,7 +291,7 @@ async function searchGuardianForExcerpt(headline) {
   const key = process.env.GUARDIAN_API_KEY;
   if (!key) return null;
   try {
-    const q   = encodeURIComponent(headline.replace(/['\"]?/g, '').slice(0, 120));
+    const q   = encodeURIComponent(headline.replace(/['"]/g, '').slice(0, 120));
     const url = `https://content.guardianapis.com/search?q=${q}&show-fields=bodyText&page-size=1&api-key=${key}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok) return null;
