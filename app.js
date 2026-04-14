@@ -15,7 +15,6 @@
     en: {
       updated:       'Updated',
       learnMore:     'Learn more →',
-      firstReported: 'First reported',
       breaking:      'Breaking',
       newBadge:      'New',
       international: 'International',
@@ -31,7 +30,6 @@
     zh: {
       updated:       '更新於',
       learnMore:     '了解更多 →',
-      firstReported: '首報',
       breaking:      '突發',
       newBadge:      '最新',
       international: '國際',
@@ -91,7 +89,6 @@
 
   function saveXlatCache(generatedAt, cache) {
     try {
-
       const target = LS_XLAT_PFX + generatedAt;
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -139,11 +136,9 @@
   function renderChips(sources) {
     return sources.map(s => {
       if (s.paywalled) {
-
         return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
       }
       if (!s.url) {
-
         return `<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`;
       }
       return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`;
@@ -179,7 +174,7 @@
       ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${displayHeadline}</a>`
       : `${badge}${displayHeadline}`;
     const pubTime  = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">${t('firstReported')} ${pubTime}</time>` : '';
+    const timeHtml = pubTime ? `<time class="story-time">${pubTime}</time>` : '';
 
     const learnMoreHtml = c.learnMoreUrl
       ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>`
@@ -243,14 +238,10 @@
   }
 
   async function setLang(lang) {
-
-
-
     if (lang === currentLang && !(lang === 'zh' && !translationCache)) return;
     stopSpeaking();
     const btnEn = document.getElementById('lang-en');
     const btnZh = document.getElementById('lang-zh');
-
     const main = document.getElementById('main-content');
     const bar  = document.getElementById('translating-bar');
 
@@ -258,17 +249,13 @@
       if (!currentDigestData) return;
       btnEn.disabled = btnZh.disabled = true;
       btnZh.textContent = '…';
-
       if (!translationCache) {
-
         if (main) main.classList.add('translating');
         if (bar)  bar.classList.add('visible');
-
         const items = [
           ...(currentDigestData.international || []),
           ...(currentDigestData.local         || []),
         ].map(c => ({ id: c.id, headline: c.headline, summary: c.summary || '' }));
-
         try {
           const res = await fetch('/api/translate', {
             method:  'POST',
@@ -280,7 +267,6 @@
           translationCache = Object.fromEntries(
             (data.items || []).map(it => [it.id, it])
           );
-
           if (currentGeneratedAt) saveXlatCache(currentGeneratedAt, translationCache);
         } catch (err) {
           console.error('[lang] translation failed:', err);
@@ -290,25 +276,21 @@
           btnZh.textContent = '中';
           return;
         }
-
         if (main) main.classList.remove('translating');
         if (bar)  bar.classList.remove('visible');
       }
-
       currentLang = 'zh';
       saveLang('zh');
       btnZh.textContent = '中';
       btnZh.classList.add('active');
       btnEn.classList.remove('active');
       btnEn.disabled = btnZh.disabled = false;
-
     } else {
       currentLang = 'en';
       saveLang('en');
       btnEn.classList.add('active');
       btnZh.classList.remove('active');
     }
-
     updateMetaLine();
     if (currentDigestData) {
       document.getElementById('main-content').innerHTML = renderDigest(currentDigestData);
@@ -319,14 +301,10 @@
     stopSpeaking();
     const btn = document.getElementById('refresh-btn');
     btn.disabled = true;
-
-
     translationCache = null;
     await loadDigest();
     btn.disabled = false;
   }
-
-
 
 
   function copyStory(btn) {
@@ -334,18 +312,15 @@
     const summary  = btn.dataset.summary  || '';
     const url      = btn.dataset.url      || '';
     const tag      = btn.dataset.tag      || '';
-
     const linkPart = url ? ` [(link)](${url})` : '';
     const tagPart  = tag ? ` #${tag}` : '';
     const text = `${summary}${linkPart}${tagPart}`;
-
     const finish = () => {
       btn.classList.add('copied');
       const origTitle = btn.title;
       btn.title = 'Copied!';
       setTimeout(() => { btn.classList.remove('copied'); btn.title = origTitle; }, 2000);
     };
-
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
     } else {
@@ -364,21 +339,16 @@
   }
 
 
-
-
   function stopSpeaking() {
-
     if (currentSource) {
       try { currentSource.stop(); } catch {}
       currentSource = null;
     }
-
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.src = '';
       currentAudio = null;
     }
-
     try { if (window.speechSynthesis?.speaking) window.speechSynthesis.cancel(); } catch {}
     speakingId = null;
     document.querySelectorAll('.story-speak-btn.speaking').forEach(b => {
@@ -391,18 +361,12 @@
     const id         = btn.dataset.id;
     const text       = btn.dataset.text;
     const wasPlaying = (speakingId === id);
-
     stopSpeaking();
     if (wasPlaying || !id) return;
-
     speakingId = id;
     btn.classList.add('speaking');
     btn.title = 'Stop reading';
-
     const lang = currentLang === 'zh' ? 'zh' : 'en';
-
-
-
 
     let ctx = null;
     try {
@@ -426,7 +390,6 @@
         ttsCache.set(cacheKey, arrayBuffer);
       }
       if (speakingId !== id) return;
-
       const cleanup = () => {
         currentSource = null;
         if (speakingId === id) {
@@ -435,8 +398,6 @@
           btn.title = 'Read aloud';
         }
       };
-
-
       if (ctx) {
         try {
           const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
@@ -452,13 +413,10 @@
           console.warn('[tts] Web Audio failed, trying HTML Audio:', webAudioErr.message);
         }
       }
-
-
       const blob  = new Blob([arrayBuffer], { type: 'audio/wav' });
       const url   = URL.createObjectURL(blob);
       const audio = new Audio(url);
       currentAudio = audio;
-
       const audioCleanup = () => {
         URL.revokeObjectURL(url);
         currentAudio = null;
@@ -471,9 +429,7 @@
       audio.onended = audioCleanup;
       audio.onerror = audioCleanup;
       audio.play().catch(audioCleanup);
-
     } catch (err) {
-
       console.warn('[tts] API failed, falling back to Web Speech:', err.message);
       if (window.speechSynthesis && speakingId === id) {
         const utt  = new SpeechSynthesisUtterance(text);
@@ -497,25 +453,19 @@
   }
 
   function renderDigest(data) {
-
     const seenMap  = getSeenHeadlines();
     const seenSet  = new Set(Object.keys(seenMap));
-
     const intl  = renderSection(t('international'), data.international, 'international', seenSet);
     const local = renderSection(t('hongKong'),      data.local,         'local',         seenSet);
-
     if (!intl && !local) {
       return `<div class="state-box"><h2>${t('noStoriesTitle')}</h2>
         <p>${t('noStoriesBody')}</p></div>`;
     }
-
-
     const allHeadlines = [
       ...(data.international || []),
       ...(data.local         || []),
     ].map(s => s.headline);
     markHeadlinesSeen(allHeadlines);
-
     return intl + local;
   }
 
@@ -537,38 +487,31 @@
   async function loadDigest() {
     const main = document.getElementById('main-content');
     const meta = document.getElementById('meta-line');
-
     main.innerHTML = `<div class="state-box">
       <div class="spinner"></div>
       <h2>${t('loadingTitle')}</h2>
       <p>${t('loadingBody')}</p>
     </div>`;
-
     try {
       const res = await fetch('/api/digest');
       if (!res.ok) throw new Error(`API returned ${res.status}`);
-
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('text/event-stream')) {
-
         const reader  = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
         let cleared = false;
         if (!currentDigestData) currentDigestData = { international: [], local: [] };
-
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
           const lines = buf.split('\n');
           buf = lines.pop();
-
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             let evt;
             try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-
             if (evt.type === 'section') {
               if (!cleared) { main.innerHTML = ''; cleared = true; }
               const { section, stories } = evt;
@@ -593,9 +536,7 @@
             }
           }
         }
-
       } else {
-
         const data = await res.json();
         currentDigestData  = data;
         currentGeneratedAt = data.generatedAt;
@@ -619,14 +560,12 @@
     speakingId = id;
     const existingBtn = document.querySelector(`.story-speak-btn[data-id="${CSS.escape(id)}"]`);
     if (existingBtn) { existingBtn.classList.add('speaking'); existingBtn.title = 'Stop reading'; }
-
     let ctx = null;
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       ctx = audioCtx;
       if (ctx.state === 'suspended') ctx.resume();
     } catch { ctx = null; }
-
     try {
       const cacheKey = id + ':' + lang;
       let arrayBuffer = ttsCache.get(cacheKey);
@@ -641,7 +580,6 @@
         ttsCache.set(cacheKey, arrayBuffer);
       }
       if (!playAllActive || speakingId !== id) return;
-
       await new Promise(resolve => {
         const cleanup = () => {
           currentSource = null;
@@ -710,9 +648,6 @@
     if (playAllActive) { stopPlayAll(); return; }
     if (!currentDigestData) return;
 
-
-
-
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -743,9 +678,7 @@
   }
 
 
-
   (function restoreLang() {
-
     const APP_VER = 'v2';
     try {
       if (localStorage.getItem('dp_app_ver') !== APP_VER) {
