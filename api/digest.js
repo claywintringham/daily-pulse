@@ -131,8 +131,15 @@ function excerptIsRelevant(headline, excerpt) {
     .filter(w => w.length > 3);
   if (!tokens.length) return true;
   const ex = excerpt.toLowerCase();
-  const anchors = tokens.filter(w => w.length > 6);
+
+  // Anchor gate: only very distinctive words (>8 chars) are required.
+  // Using >8 instead of >6 avoids blocking good excerpts over common editorial
+  // words like "backlash" (8) or "condemns" (8) that may not appear verbatim
+  // in article body text even when the article IS clearly about the story.
+  const anchors = tokens.filter(w => w.length > 8);
   if (anchors.length > 0 && !anchors.some(a => ex.includes(a))) return false;
+
+  // Overlap gate: ≥30% of meaningful tokens must appear in the excerpt.
   const hits = tokens.filter(t => ex.includes(t)).length;
   return hits >= Math.max(3, Math.floor(tokens.length * 0.30));
 }
@@ -430,7 +437,6 @@ export default async function handler(req, res) {
     }
 
     // ── 5. Enrich clusters with article content ─────────────────────────────
-    // Run on union of both buckets so fallback clusters also get excerpts.
     const toEnrich = [
       ...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values(),
     ];
