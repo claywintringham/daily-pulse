@@ -124,13 +124,15 @@
     if (!iso) return null;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString(undefined, {
-      hour: '2-digit', minute: '2-digit',
-    });
-    const date = d.toLocaleString(undefined, {
-      weekday: 'short', day: 'numeric', month: 'short',
-    });
-    return `${time} · ${date}`;
+    const diffMs    = Date.now() - d.getTime();
+    const diffMins  = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays  = Math.floor(diffMs / 86400000);
+    if (diffMins  <  1) return 'just now';
+    if (diffMins  < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays  <  7) return `${diffDays}d ago`;
+    return d.toLocaleString(undefined, { day: 'numeric', month: 'short' });
   }
 
 
