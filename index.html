@@ -6,7 +6,327 @@
   <title>Daily Pulse — Hong Kong</title>
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/apple-touch-icon.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:       #111111;
+      --ink-mid:   #444444;
+      --ink-faint: #888888;
+      --rule:      #d0c8b8;
+      --bg:        #f5f1ea;
+      --card-bg:   #faf8f4;
+      --accent:    #b5202a;
+      --chip-bg:   #e8e2d8;
+      --chip-hover:#d0c8b8;
+      --sans:      'Georgia', 'Times New Roman', Times, serif;
+      --ui:        system-ui, -apple-system, sans-serif;
+    }
+
+    html { font-size: 16px; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .masthead {
+      border-bottom: 3px double var(--ink);
+      padding: 1.25rem 0 0.75rem;
+      text-align: center;
+      background: var(--bg);
+    }
+    .masthead-eyebrow {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 0.25rem;
+    }
+    .masthead-title {
+      font-size: clamp(2.2rem, 6vw, 3.8rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .masthead-title span { color: var(--accent); }
+    .masthead-meta {
+      font-family: var(--ui);
+      font-size: 0.72rem;
+      color: var(--ink-faint);
+      margin-top: 0.5rem;
+      letter-spacing: 0.04em;
+    }
+
+    .layout { max-width: 680px; margin: 0 auto; padding: 0 1rem 4rem; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 2rem 0 1rem;
+      border-bottom: 1.5px solid var(--ink);
+      padding-bottom: 0.35rem;
+    }
+    .section-label {
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mid);
+    }
+
+    .story-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      padding: 1.1rem 1.2rem 0.9rem;
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    .story-meta {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      color: var(--ink-faint);
+      margin-bottom: 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .story-meta-label { font-weight: 600; letter-spacing: 0.04em; }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--ui);
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.15em 0.45em;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+    .badge-new  { background: var(--ink); color: var(--bg); }
+    .badge-breaking { background: var(--accent); color: #fff; }
+
+    .story-headline {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 0.5rem;
+      color: var(--ink);
+    }
+    .story-summary {
+      font-size: 0.92rem;
+      line-height: 1.65;
+      color: var(--ink-mid);
+      margin-bottom: 0.75rem;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.65rem;
+    }
+    .chip {
+      font-family: var(--ui);
+      font-size: 0.65rem;
+      font-weight: 600;
+      background: var(--chip-bg);
+      color: var(--ink-mid);
+      padding: 0.2em 0.55em;
+      border-radius: 2px;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .chip:hover { background: var(--chip-hover); }
+    .chip.paywalled { opacity: 0.65; cursor: default; }
+    .chip-pos { opacity: 0.65; margin-left: 0.25em; }
+
+    .story-footer {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .learn-more {
+      font-family: var(--ui);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3em;
+    }
+    .learn-more:hover { color: var(--accent); }
+
+    .tts-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      color: var(--ink-faint);
+      font-size: 0.85rem;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+    .tts-btn:hover { color: var(--ink); background: var(--chip-bg); }
+    .tts-btn.speaking { color: var(--accent); }
+
+    .masthead-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .lang-toggle {
+      display: flex;
+      background: var(--chip-bg);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--rule);
+    }
+    .lang-btn {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 0.3em 0.7em;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-mid);
+      transition: background 0.15s, color 0.15s;
+    }
+    .lang-btn.active { background: var(--ink); color: var(--bg); }
+
+    .play-all-btn {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 0.3em 0.8em;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--ink-mid);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+      transition: background 0.15s, color 0.15s;
+    }
+    .play-all-btn:hover { background: var(--chip-hover); color: var(--ink); }
+    .play-all-btn.playing { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .refresh-btn {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 0.3em 0.65em;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--ink-mid);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+      transition: background 0.15s, color 0.15s;
+    }
+    .refresh-btn:hover { background: var(--chip-hover); color: var(--ink); }
+
+    .status-bar {
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      text-align: center;
+      padding: 0.75rem 0 0;
+      border-top: 1px solid var(--rule);
+      margin-top: 2rem;
+    }
+    .status-bar a { color: inherit; }
+
+    #main-content { outline: none; }
+
+    .skeleton-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1rem;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .skel-line {
+      background: var(--rule);
+      border-radius: 2px;
+      margin-bottom: 0.5rem;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.55; }
+    }
+
+    @media (max-width: 480px) {
+      .story-headline { font-size: 1.05rem; }
+      .layout { padding: 0 0.75rem 3rem; }
+    }
+  </style>
 </head>
 <body>
+
+  <header class="masthead" role="banner">
+    <div class="masthead-eyebrow">Hong Kong · Est. 2025</div>
+    <h1 class="masthead-title">Daily <span>Pulse</span></h1>
+    <div class="masthead-meta" id="meta-line">Loading…</div>
+    <div class="masthead-controls">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-btn active" id="lang-en" onclick="setLang('en')" aria-pressed="true">EN</button>
+        <button class="lang-btn"        id="lang-zh" onclick="setLang('zh')" aria-pressed="false">中</button>
+      </div>
+      <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="3,2 13,8 3,14"/></svg>
+        Play All
+      </button>
+      <button class="refresh-btn" id="refresh-btn" onclick="refreshDigest()" title="Refresh digest">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.06-3.41L10 7h5V2l-1.35.35z"/></svg>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <main class="layout" id="main-content" tabindex="-1" aria-live="polite" aria-label="News digest">
+    <div id="skeleton-loader">
+      <div class="section-header"><span class="section-label">International</span></div>
+      <div class="skeleton-card"><div class="skel-line" style="width:65%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:90%;height:.8rem"></div><div class="skel-line" style="width:75%;height:.8rem"></div></div>
+      <div class="skeleton-card"><div class="skel-line" style="width:55%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:85%;height:.8rem"></div></div>
+      <div class="section-header" style="margin-top:1.5rem"><span class="section-label">Hong Kong</span></div>
+      <div class="skeleton-card"><div class="skel-line" style="width:70%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:80%;height:.8rem"></div></div>
+    </div>
+  </main>
+
+  <footer class="status-bar">
+    <span id="status-text">Connecting…</span>
+    &nbsp;·&nbsp; <a id="api-link" href="/api/digest" target="_blank">API</a>
+  </footer>
+
+  <script src="/app.js"></script>
 </body>
 </html>
