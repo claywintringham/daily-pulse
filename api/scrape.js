@@ -22,7 +22,7 @@ import { enrichWithArticleContent } from '../lib/enricher.js';
 import { scoreClusters }  from '../lib/scorer.js';
 import { getById }        from '../lib/sourceRegistry.js';
 import { set as redisSet } from '../lib/redis.js';
-import { translateHeadlines } from '../lib/llm.js';
+import { translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 
 export const config = { maxDuration: 300 };
 
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
     console.log(`[scrape] Translation done in ${Date.now() - t0} ms`);
 
     // ── Step 3: Cross-source clustering (Gemini semantic, Jaccard fallback) ──
-    const clusters = await buildClusters(enrichedFinal);
+    const clusters = await buildClusters(enrichedFinal, clusterHeadlines);
     console.log(`[scrape] Built ${clusters.length} cluster(s) in ${Date.now() - t0} ms`);
 
     // ── Step 4: Score per bucket ────────────────────────────────────────────
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       ...intlScored.slice(0, ENRICH_INTL),
       ...localScored.slice(0, ENRICH_LOCAL),
     ];
-    console.log(`[scrape] Enriching ${toEnrich.length} top clusters…`);
+    console.log(`[scrape] Enriching ${toEnrich.length} top clusters...`);
     await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
     console.log(`[scrape] Enrichment done in ${Date.now() - t0} ms`);
 
