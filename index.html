@@ -7,6 +7,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/apple-touch-icon.png">
   <style>
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -33,12 +34,14 @@
       min-height: 100vh;
     }
 
+
     .masthead {
       border-bottom: 3px double var(--ink);
       padding: 1.25rem 0 0.75rem;
       text-align: center;
       background: var(--bg);
     }
+
     .masthead-eyebrow {
       font-family: var(--ui);
       font-size: 0.68rem;
@@ -48,6 +51,7 @@
       color: var(--ink-faint);
       margin-bottom: 0.25rem;
     }
+
     .masthead-title {
       font-size: clamp(2.2rem, 6vw, 3.8rem);
       font-weight: 900;
@@ -55,7 +59,9 @@
       line-height: 1;
       color: var(--ink);
     }
+
     .masthead-title span { color: var(--accent); }
+
     .masthead-meta {
       font-family: var(--ui);
       font-size: 0.72rem;
@@ -64,269 +70,393 @@
       letter-spacing: 0.04em;
     }
 
-    .layout { max-width: 680px; margin: 0 auto; padding: 0 1rem 4rem; }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+    }
+
 
     .section-header {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       gap: 0.75rem;
-      margin: 2rem 0 1rem;
-      border-bottom: 1.5px solid var(--ink);
-      padding-bottom: 0.35rem;
+      padding: 1.25rem 0 0.5rem;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 0;
     }
+
     .section-label {
       font-family: var(--ui);
-      font-size: 0.7rem;
-      font-weight: 700;
+      font-size: 0.78rem;
+      font-weight: 800;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--ink-mid);
-    }
-
-    .story-card {
-      background: var(--card-bg);
-      border: 1px solid var(--rule);
-      border-radius: 2px;
-      padding: 1.1rem 1.2rem 0.9rem;
-      margin-bottom: 1rem;
-      position: relative;
-    }
-
-    .story-meta {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      color: var(--ink-faint);
-      margin-bottom: 0.45rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-    .story-meta-label { font-weight: 600; letter-spacing: 0.04em; }
-
-    .badge {
-      display: inline-block;
-      font-family: var(--ui);
-      font-size: 0.58rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 0.15em 0.45em;
-      border-radius: 2px;
-      vertical-align: middle;
-    }
-    .badge-new  { background: var(--ink); color: var(--bg); }
-    .badge-breaking { background: var(--accent); color: #fff; }
-
-    .story-headline {
-      font-size: 1.15rem;
-      font-weight: 700;
-      line-height: 1.3;
-      margin-bottom: 0.5rem;
       color: var(--ink);
     }
+
+    .section-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+
+    .story-card {
+      border-bottom: 1px solid var(--rule);
+      padding: 1.2rem 0 1.1rem;
+    }
+
+    .story-card:last-child { border-bottom: none; }
+
+    .story-headline {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--ink);
+      margin-bottom: 0.55rem;
+      letter-spacing: -0.01em;
+    }
+
+    .story-headline a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .story-headline a:hover { color: var(--accent); }
+
     .story-summary {
-      font-size: 0.92rem;
+      font-size: 0.95rem;
       line-height: 1.65;
       color: var(--ink-mid);
       margin-bottom: 0.75rem;
     }
 
-    .chips {
+
+    .story-chips {
       display: flex;
       flex-wrap: wrap;
       gap: 0.35rem;
-      margin-bottom: 0.65rem;
+      align-items: center;
     }
+
     .chip {
       font-family: var(--ui);
-      font-size: 0.65rem;
+      font-size: 0.68rem;
       font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.18rem 0.5rem;
+      border-radius: 2px;
       background: var(--chip-bg);
       color: var(--ink-mid);
-      padding: 0.2em 0.55em;
-      border-radius: 2px;
-      white-space: nowrap;
       text-decoration: none;
-      transition: background 0.15s;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      white-space: nowrap;
     }
-    .chip:hover { background: var(--chip-hover); }
-    .chip.paywalled { opacity: 0.65; cursor: default; }
-    .chip-pos { opacity: 0.65; margin-left: 0.25em; }
+
+    .chip:hover {
+      background: var(--chip-hover);
+      border-color: var(--rule);
+      color: var(--ink);
+    }
+
+    .chip.paywalled {
+      opacity: 0.5;
+      cursor: default;
+      pointer-events: none;
+    }
+
+
+    .chip.unlinked {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .chip-pos {
+      color: var(--ink-faint);
+      font-weight: 400;
+    }
+
+
+    .story-time {
+      display: block;
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+
+    .state-box {
+      text-align: center;
+      padding: 4rem 1rem;
+      font-family: var(--ui);
+      color: var(--ink-faint);
+    }
+
+    .state-box .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .state-box h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ink-mid);
+      margin-bottom: 0.35rem;
+    }
+
+    .state-box p { font-size: 0.85rem; }
+
+
+    .new-badge {
+      font-family: var(--ui);
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #fff;
+      background: #2a9d8f;
+      padding: 0.13rem 0.38rem;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+      display: inline-block;
+      line-height: 1.6;
+    }
+
+
+    .breaking-badge {
+      font-family: var(--ui);
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--accent);
+      padding: 0.13rem 0.38rem;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+      display: inline-block;
+      line-height: 1.6;
+    }
+
+
+    .learn-more-link {
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+
+    .learn-more-link:hover { text-decoration: underline; }
+
 
     .story-footer {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.55rem;
     }
-    .learn-more {
-      font-family: var(--ui);
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--ink);
-      text-decoration: none;
-      letter-spacing: 0.02em;
+
+    .story-copy-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.3em;
-    }
-    .learn-more:hover { color: var(--accent); }
-
-    .tts-btn {
       background: none;
       border: none;
       cursor: pointer;
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
       color: var(--ink-faint);
-      font-size: 0.85rem;
-      transition: color 0.15s, background 0.15s;
+      padding: 0;
+      transition: color 0.15s;
       line-height: 1;
     }
-    .tts-btn:hover { color: var(--ink); background: var(--chip-bg); }
-    .tts-btn.speaking { color: var(--accent); }
+
+    .story-copy-btn:hover  { color: var(--ink); }
+    .story-copy-btn.copied { color: #2a7a2a; }
+
+    .story-speak-btn {
+      display: inline-flex;
+      align-items: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-faint);
+      padding: 0;
+      margin-left: 0.15rem;
+      transition: color 0.15s;
+      line-height: 1;
+    }
+    .story-speak-btn:hover   { color: var(--ink); }
+    .story-speak-btn.speaking {
+      color: var(--accent);
+      animation: speak-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes speak-pulse {
+      0%, 100% { opacity: 1;   }
+      50%       { opacity: 0.4; }
+    }
+
+
+    footer {
+      border-top: 1px solid var(--rule);
+      margin-top: 2rem;
+      padding: 1.25rem 0;
+      text-align: center;
+      font-family: var(--ui);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.04em;
+    }
+
+    footer a { color: inherit; }
+
 
     .masthead-controls {
       display: flex;
-      justify-content: center;
       align-items: center;
-      gap: 0.75rem;
-      margin-top: 0.6rem;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      padding: 0.55rem 0 0.15rem;
     }
-    .lang-toggle {
-      display: flex;
-      background: var(--chip-bg);
-      border-radius: 3px;
-      overflow: hidden;
-      border: 1px solid var(--rule);
-    }
-    .lang-btn {
-      font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      padding: 0.3em 0.7em;
+
+    .refresh-btn {
       background: none;
       border: none;
+      border-radius: 3px;
+      padding: 0.2rem 0.3rem;
       cursor: pointer;
-      color: var(--ink-mid);
-      transition: background 0.15s, color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      color: var(--ink-faint);
+      transition: color 0.12s, background 0.12s;
     }
-    .lang-btn.active { background: var(--ink); color: var(--bg); }
+
+    .refresh-btn:hover    { color: var(--ink); background: var(--chip-bg); }
+    .refresh-btn:disabled { opacity: 0.35; cursor: default; }
 
     .play-all-btn {
       font-family: var(--ui);
       font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      padding: 0.3em 0.8em;
-      background: var(--chip-bg);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--ink-mid);
+      background: none;
       border: 1px solid var(--rule);
       border-radius: 3px;
+      padding: 0.22rem 0.6rem;
       cursor: pointer;
-      color: var(--ink-mid);
       display: inline-flex;
       align-items: center;
-      gap: 0.4em;
-      transition: background 0.15s, color 0.15s;
+      gap: 0.25rem;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
     }
-    .play-all-btn:hover { background: var(--chip-hover); color: var(--ink); }
-    .play-all-btn.playing { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-    .refresh-btn {
+    .play-all-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
+    .play-all-btn:disabled { opacity: 0.45; cursor: default; }
+    .play-all-btn.playing  { color: var(--accent); border-color: var(--accent); }
+
+    .lang-toggle {
+      display: inline-flex;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      overflow: hidden;
       font-family: var(--ui);
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      padding: 0.3em 0.65em;
-      background: var(--chip-bg);
-      border: 1px solid var(--rule);
-      border-radius: 3px;
-      cursor: pointer;
-      color: var(--ink-mid);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35em;
-      transition: background 0.15s, color 0.15s;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
     }
-    .refresh-btn:hover { background: var(--chip-hover); color: var(--ink); }
 
-    .status-bar {
+    .lang-toggle button {
+      padding: 0.28rem 0.65rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-faint);
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .lang-toggle button + button { border-left: 1px solid var(--rule); }
+
+    .lang-toggle button.active   { background: var(--ink); color: var(--bg); }
+    .lang-toggle button:disabled { cursor: default; }
+
+    #main-content { transition: opacity 0.2s; }
+    #main-content.translating { opacity: 0.35; pointer-events: none; }
+
+    .translating-bar {
       font-family: var(--ui);
       font-size: 0.7rem;
       color: var(--ink-faint);
+      letter-spacing: 0.04em;
       text-align: center;
-      padding: 0.75rem 0 0;
-      border-top: 1px solid var(--rule);
-      margin-top: 2rem;
+      padding: 0.4rem 0 0;
+      display: none;
     }
-    .status-bar a { color: inherit; }
+    .translating-bar.visible { display: block; }
 
-    #main-content { outline: none; }
 
-    .skeleton-card {
-      background: var(--card-bg);
-      border: 1px solid var(--rule);
-      border-radius: 2px;
-      padding: 1.1rem 1.2rem;
-      margin-bottom: 1rem;
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-    .skel-line {
-      background: var(--rule);
-      border-radius: 2px;
-      margin-bottom: 0.5rem;
-    }
-    @keyframes pulse {
-      0%,100% { opacity: 1; }
-      50%      { opacity: 0.55; }
-    }
-
-    @media (max-width: 480px) {
-      .story-headline { font-size: 1.05rem; }
-      .layout { padding: 0 0.75rem 3rem; }
+    @media (max-width: 520px) {
+      .story-headline { font-size: 1.1rem; }
+      .story-summary  { font-size: 0.9rem; }
     }
   </style>
 </head>
 <body>
 
-  <header class="masthead" role="banner">
-    <div class="masthead-eyebrow">Hong Kong · Est. 2025</div>
+<header class="masthead">
+  <div class="container">
+    <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
-    <div class="masthead-meta" id="meta-line">Loading…</div>
+    <p class="masthead-meta" id="meta-line">Loading…</p>
+    <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
     <div class="masthead-controls">
-      <div class="lang-toggle" role="group" aria-label="Language">
-        <button class="lang-btn active" id="lang-en" onclick="setLang('en')" aria-pressed="true">EN</button>
-        <button class="lang-btn"        id="lang-zh" onclick="setLang('zh')" aria-pressed="false">中</button>
+      <div style="display:inline-flex;align-items:center;gap:0.5rem;">
+        <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()" title="Refresh digest" aria-label="Refresh digest">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+            <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+          </svg>
+        </button>
+        <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+          </svg>
+          Play All
+        </button>
       </div>
-      <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="3,2 13,8 3,14"/></svg>
-        Play All
-      </button>
-      <button class="refresh-btn" id="refresh-btn" onclick="refreshDigest()" title="Refresh digest">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.06-3.41L10 7h5V2l-1.35.35z"/></svg>
-        Refresh
-      </button>
+      <div class="lang-toggle">
+        <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
+        <button id="lang-zh" onclick="setLang('zh')">中</button>
+      </div>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main class="layout" id="main-content" tabindex="-1" aria-live="polite" aria-label="News digest">
-    <div id="skeleton-loader">
-      <div class="section-header"><span class="section-label">International</span></div>
-      <div class="skeleton-card"><div class="skel-line" style="width:65%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:90%;height:.8rem"></div><div class="skel-line" style="width:75%;height:.8rem"></div></div>
-      <div class="skeleton-card"><div class="skel-line" style="width:55%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:85%;height:.8rem"></div></div>
-      <div class="section-header" style="margin-top:1.5rem"><span class="section-label">Hong Kong</span></div>
-      <div class="skeleton-card"><div class="skel-line" style="width:70%;height:1.1rem"></div><div class="skel-line" style="width:100%;height:.8rem;margin-top:.5rem"></div><div class="skel-line" style="width:80%;height:.8rem"></div></div>
-    </div>
-  </main>
+<main class="container" id="main-content">
+  <div class="state-box">
+    <div class="spinner"></div>
+    <h2>Fetching today's digest…</h2>
+    <p>Pulling the latest headlines from across Hong Kong and the world.</p>
+  </div>
+</main>
 
-  <footer class="status-bar">
-    <span id="status-text">Connecting…</span>
-    &nbsp;·&nbsp; <a id="api-link" href="/api/digest" target="_blank">API</a>
-  </footer>
+<footer class="container">
+  <p>Daily Pulse aggregates news headlines from public news outlets.
+  Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
+</footer>
 
-  <script src="/app.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
