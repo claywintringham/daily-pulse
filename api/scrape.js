@@ -15,9 +15,10 @@
 //
 // Vercel config: maxDuration 300 s (Pro plan).
 
-import { runAllAdapters } from '../lib/adapters/index.js';
-import { enrichWithRss }  from '../lib/matcher.js';
-import { buildClusters }  from '../lib/cluster.js';
+import { runAllAdapters }          from '../lib/adapters/index.js';
+import { enrichWithRss }           from '../lib/matcher.js';
+import { buildClusters }           from '../lib/cluster.js';
+import { enrichWithArticleContent } from '../lib/enricher.js';
 import { scoreClusters }  from '../lib/scorer.js';
 import { getById }        from '../lib/sourceRegistry.js';
 import { set as redisSet } from '../lib/redis.js';
@@ -95,32 +96,50 @@ export default async function handler(req, res) {
     );
     console.log(`[scrape] Translation done in ${Date.now() - t0} ms`);
 
-    // ── Step 3: Cross-source clustering ────────────────────────────────────
-    const clusters = buildClusters(enrichedFinal);
-    console.log(`[scrape] Built ${clusters.length} cluster(s)`);
+    // ── Step 3: Cross-source clustering (Gemini semantic, Jaccard fallback) ──
+    const clusters = await buildClusters(enrichedFinal);
+    console.log(`[scrape] Built ${clusters.length} cluster(s) in ${Date.now() - t0} ms`);
 
     // ── Step 4: Score per bucket ────────────────────────────────────────────
     const intlScored  = scoreClusters(clusters, 'international');
     const localScored = scoreClusters(clusters, 'local');
-    console.log(
-      `[scrape] Scored: ${intlScored.length} international, ${localScored.length} local`
-    );
+    console.log(`[scrape] Scored: ${intlScored.length} intl, ${localScored.length} local`);
+
+    // ── Step 4.5: Article enrichment (Pipeline 1 — invisible to user) ───────
+    // Pre-fetch article text for the top clusters so digest.js can skip this
+    // step entirely, removing 5-10 s from the user-facing load time.
+    // Firecrawl is used as a last resort for bot-blocked sites (Fox, NBC, CBS).
+    const ENRICH_INTL  = 5;  // enrich top N intl (more than display cap for headroom)
+    const ENRICH_LOCAL = 4;
+    const toEnrich = [
+      ...intlScored.slice(0, ENRICH_INTL),
+      ...localScored.slice(0, ENRICH_LOCAL),
+    ];
+    console.log(`[scrape] Enriching ${toEnrich.length} top clusters…`);
+    await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
+    console.log(`[scrape] Enrichment done in ${Date.now() - t0} ms`);
 
     // ── Step 5: Write to Redis ──────────────────────────────────────────────
+    const adapterMeta = adapterResults.map(r => ({
+      sourceId:         r.sourceId,
+      scrapeConfidence: r.scrapeConfidence,
+      itemCount:        (r.items ?? []).length,
+      warnings:         r.warnings ?? [],
+    }));
+
     const payload = {
       type,
       scrapedAt:     new Date().toISOString(),
       international: intlScored,
       local:         localScored,
-      adapterMeta:   adapterResults.map(r => ({
-        sourceId:         r.sourceId,
-        scrapeConfidence: r.scrapeConfidence,
-        itemCount:        (r.items ?? []).length,
-        warnings:         r.warnings ?? [],
-      })),
+      adapterMeta,
     };
 
-    await redisSet(`scraped:${type}`, payload, SCRAPED_TTL);
+    // Write to scraped:{type} (legacy) AND scraped:rolling (used by digest)
+    await Promise.all([
+      redisSet(`scraped:${type}`, payload, SCRAPED_TTL),
+      redisSet('scraped:rolling',  payload, SCRAPED_TTL),
+    ]);
     console.log(
       `[scrape] Written scraped:${type} to Redis. Total elapsed: ${Date.now() - t0} ms`
     );
