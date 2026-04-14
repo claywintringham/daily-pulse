@@ -280,7 +280,7 @@ async function searchGuardianForExcerpt(headline) {
   const key = process.env.GUARDIAN_API_KEY;
   if (!key) return null;
   try {
-    const q   = encodeURIComponent(headline.replace(/['"]/g, '').slice(0, 120));
+    const q   = encodeURIComponent(headline.replace(/['\"]?/g, '').slice(0, 120));
     const url = `https://content.guardianapis.com/search?q=${q}&show-fields=bodyText&page-size=1&api-key=${key}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok) return null;
@@ -641,10 +641,26 @@ export default async function handler(req, res) {
       /^(analysis|opinion|comment|explainer|review|interview)[:\s]/i, // editorial label
       /^live:/i,                                          // live blog title
       /\blive:/i,                                         // "X crisis live: ..."
+      /^(morning|evening|daily|weekly)\s+(recap|digest|briefing|roundup|update|summary)/i, // newsletter entries
+      /^recap\b/i,                                        // "Recap: ..."
+      /^(your|the)\s+(daily|morning|evening)\s+(news|digest|briefing|summary)/i, // aggregator titles
+    ];
+    // Local-specific filter: exclude non-HK sports league stories that slip through
+    // the editorial filter (e.g. RTHK sports feed covering Premier League results).
+    const NON_HK_SPORTS_LOCAL = [
+      /\b(Premier League|FA Cup|Champions League|UEFA|Europa League|La Liga|Serie A|Bundesliga|Ligue 1)\b/i,
+      /\b(NFL|NBA|MLB|NHL|MLS|ATP|WTA|Grand Slam|Wimbledon|Roland Garros|US Open|Australian Open)\b/i,
+      /\b(Man\s*United|Man\s*City|Arsenal|Chelsea|Liverpool|Tottenham|Leicester|Everton|Aston\s*Villa)\b/i,
     ];
     const noQuestions = arr => arr.filter(
       c => !HEADLINE_SKIP.some(p => p.test(c.headline.trim()))
     );
+    const noQuestionsLocal = arr => arr.filter(c => {
+      const h = c.headline.trim();
+      if (HEADLINE_SKIP.some(p => p.test(h))) return false;
+      if (NON_HK_SPORTS_LOCAL.some(p => p.test(h))) return false;
+      return true;
+    });
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
     // International first — immediately streamed to client for fast first paint.
@@ -653,9 +669,9 @@ export default async function handler(req, res) {
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
-    // Local second.
+    // Local second — use stricter noQuestionsLocal to also drop non-HK sports.
     const localResults    = await summarizeClusters(filteredLocal);
-    const summarisedLocal = byScore(deduplicateByHeadline(noQuestions(localResults)));
+    const summarisedLocal = byScore(deduplicateByHeadline(noQuestionsLocal(localResults)));
     console.log(`[digest] Summarization done in ${Date.now() - t0} ms`);
 
     // ── 6. Rolling top-N selection ──────────────────────────────────────────
