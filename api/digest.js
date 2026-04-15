@@ -1,4 +1,4 @@
-// ── api/digest.js ───────────────────────────────────────────────────────
+// ── api/digest.js ──────────────────────────────────────────────────────────
 // Runs two parallel pipelines (international + local), each with its own
 // source set, cluster, editorial-filter, enrichment, and summarisation steps.
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
@@ -57,7 +57,7 @@ function deduplicateByHeadline(clusters, threshold = 0.5) {
   return kept;
 }
 
-// ── Per-bucket inline scrape ────────────────────────────────────────────────
+// ── Per-bucket inline scrape ──────────────────────────────────────────────
 async function runInlineScrape(bucket) {
   console.log(`[digest] Running inline scrape for bucket: ${bucket}`);
   const adapterResults = await runAllAdapters(bucket);
@@ -161,7 +161,6 @@ export default async function handler(req, res) {
       redisGet('scraped:international'),
       redisGet('scraped:local'),
     ]);
-    // Sequential inline scrapes if cold (spaces out LLM calls naturally)
     const intlScraped = cachedIntl || await runInlineScrape('international');
     const localScraped = cachedLocal || await runInlineScrape('local');
 
@@ -192,7 +191,6 @@ export default async function handler(req, res) {
     let filteredIntl  = editFilteredIntl.filter(c  => !isStale(c));
     let filteredLocal = editFilteredLocal.filter(c => !isStale(c));
 
-    // Fallback: if editorial filter removed everything, use scored clusters
     if (filteredIntl.length === 0 && intlClusters.length > 0) {
       console.warn('[digest] filteredIntl empty — using raw scraped clusters');
       filteredIntl = intlClusters.filter(c => !isStale(c));
@@ -218,13 +216,21 @@ export default async function handler(req, res) {
       console.log('[digest] All clusters pre-enriched — skipping fetch');
     }
 
+    // Skip stories with no real article content — avoids summaries based on
+    // titles alone or fallback content from unrelated sources.
+    const intlToSummarise  = intlCandidates.filter(c => c.articleExcerpts?.length >= 1);
+    const localToSummarise = localCandidates.filter(c => c.articleExcerpts?.length >= 1);
+    if (intlCandidates.length !== intlToSummarise.length || localCandidates.length !== localToSummarise.length) {
+      console.log(`[digest] Skipping stories with no content: ${intlCandidates.length - intlToSummarise.length} intl, ${localCandidates.length - localToSummarise.length} local`);
+    }
+
     // ── Summarise international → stream section immediately ────────────────
-    const intlSummarized = await summarizeClusters(intlCandidates);
+    const intlSummarized = await summarizeClusters(intlToSummarise);
     const finalIntl      = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // ── Summarise local → stream section ───────────────────────────────────
-    const localSummarized = await summarizeClusters(localCandidates);
+    const localSummarized = await summarizeClusters(localToSummarise);
     const finalLocal      = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
 
