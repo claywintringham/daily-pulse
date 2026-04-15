@@ -538,6 +538,16 @@
               } else if (evt.type === 'done') {
                 currentGeneratedAt = evt.generatedAt;
                 _finishLoad(evt.generatedAt);
+              } else if (evt.type === 'error') {
+                // Server sent a graceful error (e.g. scrape timed out).
+                // Show it if we haven't rendered any stories yet.
+                if (!cleared) {
+                  meta.textContent = t('errMeta');
+                  main.innerHTML = `<div class="state-box">
+                    <h2>${t('errTitle')}</h2>
+                    <p>${evt.message || t('errRetry')}</p>
+                  </div>`;
+                }
               }
             }
           }
