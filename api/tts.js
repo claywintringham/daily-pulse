@@ -2,7 +2,7 @@
 // Gemini 2.5 Flash TTS proxy for both English and Chinese Mandarin.
 // Accepts POST { text, lang }, returns audio/wav binary.
 //
-// Caches responses in Redis (1-hour TTL) — repeat plays are instant.
+// Caches responses in Redis (6-hour TTL) — repeat plays are instant.
 // Stores raw Gemini PCM base64 (not the wrapped WAV) to minimise Redis usage.
 
 import { get as redisGet, set as redisSet } from '../lib/redis.js';
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       const wav = pcmToWav(Buffer.from(cached.pcm, 'base64'));
       res.setHeader('Content-Type',   'audio/wav');
       res.setHeader('Content-Length', String(wav.length));
-      res.setHeader('Cache-Control',  'private, max-age=3600');
+      res.setHeader('Cache-Control',  'private, max-age=21600');
       res.setHeader('X-Cache',        'HIT');
       return res.status(200).send(wav);
     }
@@ -110,8 +110,6 @@ export default async function handler(req, res) {
   }
 
   // ── Call Gemini TTS with retry on transient failures ───────────────────────
-  // Gemini 2.5 Flash TTS preview is flaky: can return 429/503, or a 200 that
-  // lacks the expected inlineData audio payload. Retry handles both.
   const BACKOFFS_MS = [1500, 4000];
   let lastErr = null;
   for (let attempt = 0; attempt <= BACKOFFS_MS.length; attempt++) {
@@ -119,12 +117,12 @@ export default async function handler(req, res) {
       const b64 = await callGeminiTts(apiKey, truncated);
       const wav = pcmToWav(Buffer.from(b64, 'base64'));
 
-      redisSet(cacheKey, { pcm: b64 }, 3600)
+      redisSet(cacheKey, { pcm: b64 }, 6 * 3600)
         .catch(e => console.log('[tts] Redis write miss (non-fatal):', e.message));
 
       res.setHeader('Content-Type',   'audio/wav');
       res.setHeader('Content-Length', String(wav.length));
-      res.setHeader('Cache-Control',  'private, max-age=3600');
+      res.setHeader('Cache-Control',  'private, max-age=21600');
       res.setHeader('X-Cache',        'MISS');
       return res.status(200).send(wav);
     } catch (err) {
@@ -139,7 +137,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // All retries exhausted. Log informationally (client falls back to Web Speech).
   console.log('[tts] upstream unavailable — client will fall back:', lastErr?.message);
   return res.status(502).json({ error: 'TTS upstream unavailable', detail: lastErr?.message });
 }
