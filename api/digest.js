@@ -1,7 +1,7 @@
 // ── api/digest.js ─────────────────────────────────────────────────────────────
 // Function 2 of the two-function pipeline.
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
-import { enrichAndFilterClusters, pickLearnMoreUrl } from '../lib/enricher.js';
+import { enrichWithArticleContent, rankLearnMoreUrls, pickLearnMoreUrl } from '../lib/enricher.js';
 import { editorialFilter, summarizeClusters, translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
@@ -184,11 +184,26 @@ export default async function handler(req, res) {
       filteredLocal = staleFilter(scraped.local);
     }
 
-    console.log(`[digest] Picking substantive excerpts for ${filteredIntl.length} intl + ${filteredLocal.length} local clusters…`);
-    const keptIntl  = await enrichAndFilterClusters(filteredIntl);
-    const keptLocal = await enrichAndFilterClusters(filteredLocal);
-    const droppedCount = (filteredIntl.length + filteredLocal.length) - (keptIntl.length + keptLocal.length);
-    if (droppedCount > 0) console.log(`[digest] Dropped ${droppedCount} story(s) — no substantive content`);
+    const toEnrich = [...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values()];
+    const needsEnrichment = toEnrich.filter(c => !c.articleExcerpt).length;
+    if (needsEnrichment > 0) {
+      console.log(`[digest] Enriching ${needsEnrichment} clusters…`);
+      await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
+    } else {
+      console.log('[digest] All clusters pre-enriched — skipping fetch');
+    }
+
+    // Drop clusters that failed to acquire a substantive excerpt. We do NOT
+    // fall back to a placeholder string or to the headline alone — per product
+    // spec, those clusters are dropped entirely from the digest.
+    const droppedIntl  = filteredIntl.filter(c => !c.articleExcerpt).length;
+    const droppedLocal = filteredLocal.filter(c => !c.articleExcerpt).length;
+    filteredIntl  = filteredIntl.filter(c => c.articleExcerpt);
+    filteredLocal = filteredLocal.filter(c => c.articleExcerpt);
+    const droppedTotal = droppedIntl + droppedLocal;
+    if (droppedTotal > 0) {
+      console.log(`[digest] Dropped ${droppedTotal} cluster(s) with no substantive content (${droppedIntl} intl, ${droppedLocal} local)`);
+    }
 
     const HEADLINE_SKIP = [
       /\?$/, /^(analysis|opinion|comment|explainer|review|interview)[:\s]/i,
@@ -211,17 +226,21 @@ export default async function handler(req, res) {
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
 
+    // Filter out any clusters where summarization failed. summarizeClusters no
+    // longer produces a placeholder fallback; summary may be undefined.
+    const withSummary = arr => arr.filter(c => c.summary && c.summary.trim().length > 0);
+
     // Small delay before summarisation helps Gemini recover from rate limits.
     await new Promise(r => setTimeout(r, 1500));
-    const intlResults    = await summarizeClusters(keptIntl);
-    const summarisedIntl = byScore(deduplicateByHeadline(noQ(intlResults)));
+    const intlResults    = await summarizeClusters(filteredIntl);
+    const summarisedIntl = byScore(withSummary(deduplicateByHeadline(noQ(intlResults))));
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // Another pause between summarisation calls to stay under per-minute quotas.
     await new Promise(r => setTimeout(r, 1500));
-    const localResults    = await summarizeClusters(keptLocal);
-    const summarisedLocal = byScore(deduplicateByHeadline(noQLocal(localResults)));
+    const localResults    = await summarizeClusters(filteredLocal);
+    const summarisedLocal = byScore(withSummary(deduplicateByHeadline(noQLocal(localResults))));
     const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
@@ -230,6 +249,7 @@ export default async function handler(req, res) {
       adapterMeta:        scraped.adapterMeta ?? [],
       clusterCountBefore: allClusters.length,
       clusterCountAfter:  filtered.length,
+      droppedNoContent:   droppedTotal,
       elapsedMs:          Date.now() - t0,
     };
     const response = {
