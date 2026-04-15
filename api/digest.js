@@ -185,24 +185,12 @@ export default async function handler(req, res) {
     }
 
     const toEnrich = [...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values()];
-    const needsEnrichment = toEnrich.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    const needsEnrichment = toEnrich.filter(c => !c.articleExcerpt).length;
     if (needsEnrichment > 0) {
       console.log(`[digest] Enriching ${needsEnrichment} clusters…`);
-      await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
+      await enrichWithArticleContent(toEnrich);
     } else {
       console.log('[digest] All clusters pre-enriched — skipping fetch');
-    }
-
-    // Drop clusters that failed to acquire a substantive excerpt. We do NOT
-    // fall back to a placeholder string or to the headline alone — per product
-    // spec, those clusters are dropped entirely from the digest.
-    const droppedIntl  = filteredIntl.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
-    const droppedLocal = filteredLocal.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
-    filteredIntl  = filteredIntl.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
-    filteredLocal = filteredLocal.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
-    const droppedTotal = droppedIntl + droppedLocal;
-    if (droppedTotal > 0) {
-      console.log(`[digest] Dropped ${droppedTotal} cluster(s) with no substantive content (${droppedIntl} intl, ${droppedLocal} local)`);
     }
 
     const HEADLINE_SKIP = [
@@ -226,21 +214,17 @@ export default async function handler(req, res) {
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
 
-    // Filter out any clusters where summarization failed. summarizeClusters no
-    // longer produces a placeholder fallback; summary may be undefined.
-    const withSummary = arr => arr.filter(c => c.summary && c.summary.trim().length > 0);
-
     // Small delay before summarisation helps Gemini recover from rate limits.
     await new Promise(r => setTimeout(r, 1500));
     const intlResults    = await summarizeClusters(filteredIntl);
-    const summarisedIntl = byScore(withSummary(deduplicateByHeadline(noQ(intlResults))));
+    const summarisedIntl = byScore(deduplicateByHeadline(noQ(intlResults)));
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // Another pause between summarisation calls to stay under per-minute quotas.
     await new Promise(r => setTimeout(r, 1500));
     const localResults    = await summarizeClusters(filteredLocal);
-    const summarisedLocal = byScore(withSummary(deduplicateByHeadline(noQLocal(localResults))));
+    const summarisedLocal = byScore(deduplicateByHeadline(noQLocal(localResults)));
     const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
@@ -249,7 +233,6 @@ export default async function handler(req, res) {
       adapterMeta:        scraped.adapterMeta ?? [],
       clusterCountBefore: allClusters.length,
       clusterCountAfter:  filtered.length,
-      droppedNoContent:   droppedTotal,
       elapsedMs:          Date.now() - t0,
     };
     const response = {
