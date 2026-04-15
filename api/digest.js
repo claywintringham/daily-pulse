@@ -119,10 +119,15 @@ export default async function handler(req, res) {
 
   const reqUrl = new URL(req.url, `https://${req.headers.host}`);
   if (reqUrl.searchParams.get('reset') === 'true') {
-    await Promise.all([
-      redisDel('digest:rolling').catch(() => {}),
-      redisDel('scraped:rolling').catch(() => {}),
-    ]);
+    // Only clear the processed digest — NOT scraped:rolling.
+    // Clearing scraped data too forces a full 60-90 s re-scrape on the very
+    // next request, which can exceed Vercel's 120 s limit and surface as
+    // "network error" on the client. Use ?reset=true&full=true when a deep
+    // reset (fresh scrape) is genuinely needed.
+    await redisDel('digest:rolling').catch(() => {});
+    if (reqUrl.searchParams.get('full') === 'true') {
+      await redisDel('scraped:rolling').catch(() => {});
+    }
     return res.status(200).json({ ok: true, message: 'Cache cleared. Next request will regenerate the digest.' });
   }
 
@@ -151,6 +156,14 @@ export default async function handler(req, res) {
 
     let scraped = await redisGet('scraped:rolling');
     if (!scraped) scraped = await runInlineScrape();
+
+    // If scraping alone burned most of our time budget, bail gracefully now
+    // rather than continuing into LLM calls and hitting Vercel's hard 120 s
+    // kill (which silently drops the SSE connection → "network error").
+    if (Date.now() - t0 > 90_000) {
+      sse({ type: 'error', message: 'Digest is regenerating — please try again in a moment.' });
+      return res.end();
+    }
 
     const allClusters = [...(scraped.international ?? []), ...(scraped.local ?? [])];
     console.log(`[digest] ${allClusters.length} cluster(s) before editorial filter`);
