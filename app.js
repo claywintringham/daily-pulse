@@ -349,6 +349,10 @@
       currentAudio.src = '';
       currentAudio = null;
     }
+    if (audioCtx) {
+      try { audioCtx.close(); } catch {}
+      audioCtx = null;
+    }
     try { if (window.speechSynthesis?.speaking) window.speechSynthesis.cancel(); } catch {}
     speakingId = null;
     document.querySelectorAll('.story-speak-btn.speaking').forEach(b => {
@@ -648,12 +652,13 @@
     if (playAllActive) { stopPlayAll(); return; }
     if (!currentDigestData) return;
 
+    stopSpeaking();
+
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch {}
 
-    stopSpeaking();
     playAllActive = true;
     if (btn) { btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="2" width="4" height="12" rx="1"/></svg> Stop'; btn.classList.add('playing'); }
 
