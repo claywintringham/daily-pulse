@@ -214,11 +214,15 @@ export default async function handler(req, res) {
 
     const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
 
+    // Small delay before summarisation helps Gemini recover from rate limits.
+    await new Promise(r => setTimeout(r, 1500));
     const intlResults    = await summarizeClusters(filteredIntl);
     const summarisedIntl = byScore(deduplicateByHeadline(noQ(intlResults)));
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
+    // Another pause between summarisation calls to stay under per-minute quotas.
+    await new Promise(r => setTimeout(r, 1500));
     const localResults    = await summarizeClusters(filteredLocal);
     const summarisedLocal = byScore(deduplicateByHeadline(noQLocal(localResults)));
     const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
