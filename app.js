@@ -10,6 +10,26 @@
   const ttsCache         = new Map();
   let playAllActive      = false;
 
+  // Pre-fetch TTS audio for a list of stories in the background.
+  // Fire-and-forget: results land in ttsCache so Play All is instant.
+  function prefetchTts(stories) {
+    if (!stories?.length) return;
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    for (const story of stories) {
+      const text = (story.headline ? story.headline + '. ' : '') + (story.summary || '');
+      if (!text.trim()) continue;
+      const cacheKey = story.id + ':' + lang;
+      if (ttsCache.has(cacheKey)) continue;
+      fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim(), lang }),
+      })
+        .then(r => r.ok ? r.arrayBuffer() : null)
+        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
+        .catch(() => {});
+    }
+  }
 
   const UI = {
     en: {
@@ -525,11 +545,13 @@
                   currentDigestData.international = stories;
                   const html = renderSection(t('international'), stories, 'international', seenSet);
                   if (html) main.insertAdjacentHTML('beforeend', html);
+                  prefetchTts(stories);
                 } else if (section === 'local') {
                   currentDigestData.local = stories;
                   const seenSet2 = new Set(Object.keys(getSeenHeadlines()));
                   const html = renderSection(t('hongKong'), stories, 'local', seenSet2);
                   if (html) main.insertAdjacentHTML('beforeend', html);
+                  prefetchTts(stories);
                   markHeadlinesSeen([
                     ...(currentDigestData.international || []),
                     ...(currentDigestData.local         || []),
@@ -539,8 +561,6 @@
                 currentGeneratedAt = evt.generatedAt;
                 _finishLoad(evt.generatedAt);
               } else if (evt.type === 'error') {
-                // Server sent a graceful error (e.g. scrape timed out).
-                // Show it if we haven't rendered any stories yet.
                 if (!cleared) {
                   meta.textContent = t('errMeta');
                   main.innerHTML = `<div class="state-box">
@@ -552,8 +572,6 @@
             }
           }
         } catch (streamErr) {
-          // If we already cleared the spinner and rendered some stories,
-          // keep them — don't replace with the error state.
           if (!cleared) throw streamErr;
           console.warn('[loadDigest] stream ended early:', streamErr.message);
           if (!currentGeneratedAt) meta.textContent = t('errMeta');
@@ -564,10 +582,9 @@
         currentGeneratedAt = data.generatedAt;
         main.innerHTML = renderDigest(data);
         _finishLoad(data.generatedAt);
+        prefetchTts([...(data.international || []), ...(data.local || [])]);
       }
     } catch (err) {
-      // If stories were already rendered (e.g. SSE partially completed before
-      // the stream was cut), preserve them rather than wiping with the error.
       const hasContent = ((currentDigestData?.international?.length ?? 0) +
                           (currentDigestData?.local?.length ?? 0)) > 0;
       if (hasContent) {
