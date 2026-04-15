@@ -175,11 +175,12 @@ export default async function handler(req, res) {
     const localClusters = localScraped.clusters ?? [];
     console.log(`[digest] ${intlClusters.length} intl clusters, ${localClusters.length} local clusters`);
 
-    // ── Editorial filter (Gemini, bucket-aware, sequential) ─────────────────
+    // ── Editorial filter — both buckets in parallel (independent calls) ────
     await new Promise(r => setTimeout(r, 1500));
-    const editFilteredIntl  = await editorialFilter(intlClusters,  'international');
-    await new Promise(r => setTimeout(r, 1500));
-    const editFilteredLocal = await editorialFilter(localClusters, 'local');
+    const [editFilteredIntl, editFilteredLocal] = await Promise.all([
+      editorialFilter(intlClusters,  'international'),
+      editorialFilter(localClusters, 'local'),
+    ]);
     console.log(`[digest] After editorial filter: ${editFilteredIntl.length} intl, ${editFilteredLocal.length} local`);
 
     // ── Staleness filter (≤36 h) ────────────────────────────────────────────────
