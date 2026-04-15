@@ -185,7 +185,7 @@ export default async function handler(req, res) {
     }
 
     const toEnrich = [...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values()];
-    const needsEnrichment = toEnrich.filter(c => !c.articleExcerpt).length;
+    const needsEnrichment = toEnrich.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
     if (needsEnrichment > 0) {
       console.log(`[digest] Enriching ${needsEnrichment} clusters…`);
       await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
@@ -196,10 +196,10 @@ export default async function handler(req, res) {
     // Drop clusters that failed to acquire a substantive excerpt. We do NOT
     // fall back to a placeholder string or to the headline alone — per product
     // spec, those clusters are dropped entirely from the digest.
-    const droppedIntl  = filteredIntl.filter(c => !c.articleExcerpt).length;
-    const droppedLocal = filteredLocal.filter(c => !c.articleExcerpt).length;
-    filteredIntl  = filteredIntl.filter(c => c.articleExcerpt);
-    filteredLocal = filteredLocal.filter(c => c.articleExcerpt);
+    const droppedIntl  = filteredIntl.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    const droppedLocal = filteredLocal.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    filteredIntl  = filteredIntl.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
+    filteredLocal = filteredLocal.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
     const droppedTotal = droppedIntl + droppedLocal;
     if (droppedTotal > 0) {
       console.log(`[digest] Dropped ${droppedTotal} cluster(s) with no substantive content (${droppedIntl} intl, ${droppedLocal} local)`);
