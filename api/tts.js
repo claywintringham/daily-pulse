@@ -7,7 +7,7 @@
 
 import { get as redisGet, set as redisSet } from '../lib/redis.js';
 
-export const config = { maxDuration: 20 };
+export const config = { maxDuration: 30 };
 
 // ── Tiny DJB2 hash for stable cache keys ──────────────────────────────────────
 function djb2(s) {
@@ -39,6 +39,46 @@ function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
   return buf;
 }
 
+// ── One attempt at calling Gemini TTS. Returns base64 PCM or throws. ─────────
+async function callGeminiTts(apiKey, truncated) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+              `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+  const upstream = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: truncated }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!upstream.ok) {
+    const err = await upstream.text().catch(() => '');
+    const e   = new Error(`Gemini TTS ${upstream.status}: ${err.slice(0, 160)}`);
+    e.status  = upstream.status;
+    throw e;
+  }
+
+  const data = await upstream.json();
+  const b64  = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!b64) {
+    const e   = new Error('No audio data in Gemini response');
+    e.status  = 200;
+    e.noAudio = true;
+    throw e;
+  }
+  return b64;
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -66,56 +106,40 @@ export default async function handler(req, res) {
       return res.status(200).send(wav);
     }
   } catch (e) {
-    console.warn('[tts] Redis read error (non-fatal):', e.message);
+    console.log('[tts] Redis read miss (non-fatal):', e.message);
   }
 
-  // ── Call Gemini TTS ─────────────────────────────────────────────────────────
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-              `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+  // ── Call Gemini TTS with retry on transient failures ───────────────────────
+  // Gemini 2.5 Flash TTS preview is flaky: can return 429/503, or a 200 that
+  // lacks the expected inlineData audio payload. Retry handles both.
+  const BACKOFFS_MS = [1500, 4000];
+  let lastErr = null;
+  for (let attempt = 0; attempt <= BACKOFFS_MS.length; attempt++) {
+    try {
+      const b64 = await callGeminiTts(apiKey, truncated);
+      const wav = pcmToWav(Buffer.from(b64, 'base64'));
 
-  try {
-    const upstream = await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: truncated }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
-            },
-          },
-        },
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
+      redisSet(cacheKey, { pcm: b64 }, 3600)
+        .catch(e => console.log('[tts] Redis write miss (non-fatal):', e.message));
 
-    if (!upstream.ok) {
-      const err = await upstream.text().catch(() => '');
-      console.error('[tts] Gemini error:', upstream.status, err.slice(0, 200));
-      return res.status(502).json({ error: `Gemini TTS ${upstream.status}` });
+      res.setHeader('Content-Type',   'audio/wav');
+      res.setHeader('Content-Length', String(wav.length));
+      res.setHeader('Cache-Control',  'private, max-age=3600');
+      res.setHeader('X-Cache',        'MISS');
+      return res.status(200).send(wav);
+    } catch (err) {
+      lastErr = err;
+      const retryable =
+        err.noAudio ||
+        err.status === 429 ||
+        err.status === 503 ||
+        /timeout|abort/i.test(err.message || '');
+      if (!retryable || attempt === BACKOFFS_MS.length) break;
+      await new Promise(r => setTimeout(r, BACKOFFS_MS[attempt]));
     }
-
-    const data = await upstream.json();
-    const b64  = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!b64) return res.status(500).json({ error: 'No audio data in Gemini response' });
-
-    const wav = pcmToWav(Buffer.from(b64, 'base64'));
-
-    // ── Cache raw PCM base64 (1-hour TTL, fire-and-forget) ─────────────────
-    // Store PCM (not WAV) so we only keep ~75% of the decoded size in Redis.
-    redisSet(cacheKey, { pcm: b64 }, 3600)
-      .catch(e => console.warn('[tts] Redis write error (non-fatal):', e.message));
-
-    res.setHeader('Content-Type',   'audio/wav');
-    res.setHeader('Content-Length', String(wav.length));
-    res.setHeader('Cache-Control',  'private, max-age=3600');
-    res.setHeader('X-Cache',        'MISS');
-    return res.status(200).send(wav);
-
-  } catch (err) {
-    console.error('[tts] error:', err.message);
-    return res.status(500).json({ error: 'TTS request failed' });
   }
+
+  // All retries exhausted. Log informationally (client falls back to Web Speech).
+  console.log('[tts] upstream unavailable — client will fall back:', lastErr?.message);
+  return res.status(502).json({ error: 'TTS upstream unavailable', detail: lastErr?.message });
 }
