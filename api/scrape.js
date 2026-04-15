@@ -3,13 +3,10 @@
 //
 // Responsibilities:
 //   1. Run all active source adapters in parallel (DOM scraping).
-//   2. Enrich each adapter's item list with RSS metadata (URL, publishedAt,
-//      description).
-//   3. Build cross-source story clusters (Gemini semantic, Jaccard fallback).
+//   2. Enrich each adapter's item list with RSS metadata (URL, publishedAt).
+//   3. Build cross-source story clusters (Jaccard similarity).
 //   4. Score and rank clusters per bucket (international / local).
-//   5. Pre-fetch substantive article excerpts for the top clusters using the
-//      source-iteration quality gate in lib/enricher.js.
-//   6. Write raw scored clusters to Redis → key: `scraped:{type}`, TTL: 1 h.
+//   5. Write raw scored clusters to Redis → key: `scraped:{type}`, TTL: 1 h.
 //
 // Invoked by:
 //   • Vercel Cron (prewarm):  /api/scrape?type=morning&cron=1
@@ -88,7 +85,7 @@ export default async function handler(req, res) {
 
     // ── Step 2.5: Translate Chinese-language headlines ──────────────────────
     // Sources flagged needsTranslation:true have Chinese titles that must be
-    // converted to English before clustering can match them against
+    // converted to English before Jaccard clustering can match them against
     // English-language sources.
     const enrichedFinal = await Promise.all(
       enriched.map(async src => {
@@ -112,20 +109,15 @@ export default async function handler(req, res) {
     // Pre-fetch article text for the top clusters so digest.js can skip this
     // step entirely, removing 5-10 s from the user-facing load time.
     // Firecrawl is used as a last resort for bot-blocked sites (Fox, NBC, CBS).
-    //
-    // We enrich with generous headroom: clusters that fail the substantive-
-    // content quality gate are dropped at digest time, so the pre-warmed pool
-    // must be large enough to still leave STORY_COUNTS candidates after drops.
-    const ENRICH_INTL  = 8;
-    const ENRICH_LOCAL = 6;
+    const ENRICH_INTL  = 5;  // enrich top N intl (more than display cap for headroom)
+    const ENRICH_LOCAL = 4;
     const toEnrich = [
       ...intlScored.slice(0, ENRICH_INTL),
       ...localScored.slice(0, ENRICH_LOCAL),
     ];
     console.log(`[scrape] Enriching ${toEnrich.length} top clusters...`);
     await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
-    const enrichedCount = toEnrich.filter(c => c.articleExcerpt).length;
-    console.log(`[scrape] Enrichment done in ${Date.now() - t0} ms — ${enrichedCount}/${toEnrich.length} passed quality gate`);
+    console.log(`[scrape] Enrichment done in ${Date.now() - t0} ms`);
 
     // ── Step 5: Write to Redis ──────────────────────────────────────────────
     const adapterMeta = adapterResults.map(r => ({
@@ -157,7 +149,6 @@ export default async function handler(req, res) {
       type,
       intlClusters:  intlScored.length,
       localClusters: localScored.length,
-      enrichedCount,
       elapsedMs:     Date.now() - t0,
       // Debug: per-source adapter results so we can diagnose selector mismatches
       adapterMeta: adapterResults.map(r => ({
