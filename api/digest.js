@@ -12,7 +12,7 @@ import { getById }        from '../lib/sourceRegistry.js';
 
 export const config = { maxDuration: 120 };
 
-const DIGEST_TTL      = 20 * 60;
+const DIGEST_TTL      = 25 * 60; // 25 min — cron runs every 20 min, 5 min buffer
 const SCRAPED_TTL     = 20 * 60;
 const STORY_COUNTS    = { intl: 3, local: 2 };
 const STALE_WINDOW_MS = 36 * 60 * 60 * 1000;
@@ -176,7 +176,6 @@ export default async function handler(req, res) {
     console.log(`[digest] ${intlClusters.length} intl clusters, ${localClusters.length} local clusters`);
 
     // ── Editorial filter — both buckets in parallel (independent calls) ────
-    await new Promise(r => setTimeout(r, 1500));
     const [editFilteredIntl, editFilteredLocal] = await Promise.all([
       editorialFilter(intlClusters,  'international'),
       editorialFilter(localClusters, 'local'),
@@ -220,13 +219,11 @@ export default async function handler(req, res) {
     }
 
     // ── Summarise international → stream section immediately ────────────────
-    await new Promise(r => setTimeout(r, 1500));
     const intlSummarized = await summarizeClusters(intlCandidates);
     const finalIntl      = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // ── Summarise local → stream section ───────────────────────────────────
-    await new Promise(r => setTimeout(r, 1500));
     const localSummarized = await summarizeClusters(localCandidates);
     const finalLocal      = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
