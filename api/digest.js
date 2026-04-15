@@ -1,7 +1,7 @@
 // ── api/digest.js ─────────────────────────────────────────────────────────────
 // Function 2 of the two-function pipeline.
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
-import { enrichWithArticleContent, rankLearnMoreUrls, pickLearnMoreUrl } from '../lib/enricher.js';
+import { enrichAndFilterClusters, pickLearnMoreUrl } from '../lib/enricher.js';
 import { editorialFilter, summarizeClusters, translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
@@ -184,14 +184,11 @@ export default async function handler(req, res) {
       filteredLocal = staleFilter(scraped.local);
     }
 
-    const toEnrich = [...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values()];
-    const needsEnrichment = toEnrich.filter(c => !c.articleExcerpt).length;
-    if (needsEnrichment > 0) {
-      console.log(`[digest] Enriching ${needsEnrichment} clusters…`);
-      await enrichWithArticleContent(toEnrich);
-    } else {
-      console.log('[digest] All clusters pre-enriched — skipping fetch');
-    }
+    console.log(`[digest] Picking substantive excerpts for ${filteredIntl.length} intl + ${filteredLocal.length} local clusters…`);
+    const keptIntl  = await enrichAndFilterClusters(filteredIntl);
+    const keptLocal = await enrichAndFilterClusters(filteredLocal);
+    const droppedCount = (filteredIntl.length + filteredLocal.length) - (keptIntl.length + keptLocal.length);
+    if (droppedCount > 0) console.log(`[digest] Dropped ${droppedCount} story(s) — no substantive content`);
 
     const HEADLINE_SKIP = [
       /\?$/, /^(analysis|opinion|comment|explainer|review|interview)[:\s]/i,
@@ -216,14 +213,14 @@ export default async function handler(req, res) {
 
     // Small delay before summarisation helps Gemini recover from rate limits.
     await new Promise(r => setTimeout(r, 1500));
-    const intlResults    = await summarizeClusters(filteredIntl);
+    const intlResults    = await summarizeClusters(keptIntl);
     const summarisedIntl = byScore(deduplicateByHeadline(noQ(intlResults)));
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // Another pause between summarisation calls to stay under per-minute quotas.
     await new Promise(r => setTimeout(r, 1500));
-    const localResults    = await summarizeClusters(filteredLocal);
+    const localResults    = await summarizeClusters(keptLocal);
     const summarisedLocal = byScore(deduplicateByHeadline(noQLocal(localResults)));
     const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });

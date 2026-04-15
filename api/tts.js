@@ -7,7 +7,7 @@
 
 import { get as redisGet, set as redisSet } from '../lib/redis.js';
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
 
 // ── Tiny DJB2 hash for stable cache keys ──────────────────────────────────────
 function djb2(s) {
@@ -58,7 +58,7 @@ async function callGeminiTts(apiKey, truncated) {
         },
       },
     }),
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!upstream.ok) {
