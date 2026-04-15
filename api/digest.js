@@ -206,13 +206,13 @@ export default async function handler(req, res) {
     const intlCandidates  = filteredIntl.slice(0,  STORY_COUNTS.intl  * 3);
     const localCandidates = filteredLocal.slice(0, STORY_COUNTS.local * 3);
 
-    // ── Article enrichment (both sections in parallel) ──────────────────────
+    // ── Article enrichment (both sections in parallel, Firecrawl enabled) ───
     const needsEnrich = [...intlCandidates, ...localCandidates].filter(c => !c.articleExcerpts?.length);
     if (needsEnrich.length > 0) {
       console.log(`[digest] Enriching articles for ${needsEnrich.length} clusters…`);
       await Promise.all([
-        enrichWithArticleContent(intlCandidates),
-        enrichWithArticleContent(localCandidates),
+        enrichWithArticleContent(intlCandidates,  { useFirecrawl: true }),
+        enrichWithArticleContent(localCandidates, { useFirecrawl: true }),
       ]);
     } else {
       console.log('[digest] All clusters pre-enriched — skipping fetch');
