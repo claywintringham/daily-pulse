@@ -63,7 +63,7 @@ async function callGeminiTts(apiKey, truncated) {
 
   if (!upstream.ok) {
     const err = await upstream.text().catch(() => '');
-    const e   = new Error(`Gemini TTS ${upstream.status}: ${err.slice(0, 160)}`);
+    const e   = new Error(`Gemini TTS ${upstream.status}: ${err.slice(0, 200)}`);
     e.status  = upstream.status;
     throw e;
   }
@@ -130,9 +130,11 @@ export default async function handler(req, res) {
       const retryable =
         err.noAudio ||
         err.status === 429 ||
+        err.status === 500 ||  // Gemini 500s are often transient service errors
         err.status === 503 ||
         /timeout|abort/i.test(err.message || '');
       if (!retryable || attempt === BACKOFFS_MS.length) break;
+      console.log(`[tts] attempt ${attempt + 1} failed (${err.status ?? 'timeout'}), retrying in ${BACKOFFS_MS[attempt]}ms`);
       await new Promise(r => setTimeout(r, BACKOFFS_MS[attempt]));
     }
   }
