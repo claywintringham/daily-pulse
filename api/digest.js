@@ -161,7 +161,7 @@ export default async function handler(req, res) {
       redisGet('scraped:international'),
       redisGet('scraped:local'),
     ]);
-    const intlScraped = cachedIntl || await runInlineScrape('international');
+    const intlScraped  = cachedIntl  || await runInlineScrape('international');
     const localScraped = cachedLocal || await runInlineScrape('local');
 
     // ── 90s guard ─────────────────────────────────────────────────────────
@@ -224,15 +224,15 @@ export default async function handler(req, res) {
       console.log(`[digest] Skipping stories with no content: ${intlCandidates.length - intlToSummarise.length} intl, ${localCandidates.length - localToSummarise.length} local`);
     }
 
-    // ── Summarise international → stream section immediately ────────────────
-    const intlSummarized = await summarizeClusters(intlToSummarise);
-    const finalIntl      = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
+    // ── Summarise both buckets in parallel ──────────────────────────────────
+    const [intlSummarized, localSummarized] = await Promise.all([
+      summarizeClusters(intlToSummarise),
+      summarizeClusters(localToSummarise),
+    ]);
+    const finalIntl  = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
+    const finalLocal = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
-
-    // ── Summarise local → stream section ───────────────────────────────────
-    const localSummarized = await summarizeClusters(localToSummarise);
-    const finalLocal      = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
-    sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
+    sse({ type: 'section', section: 'local',         stories: formatStories(finalLocal) });
 
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
 
