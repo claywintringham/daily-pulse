@@ -224,20 +224,16 @@ export default async function handler(req, res) {
       console.log(`[digest] Skipping stories with no content: ${intlCandidates.length - intlToSummarise.length} intl, ${localCandidates.length - localToSummarise.length} local`);
     }
 
-    // ── Summarise — stagger by 500 ms to avoid Gemini rate-limit collision ──
-    // Intl fires first; local fires 500 ms later. Each section SSEs as soon as
-    // it's ready, so international stories appear without waiting for local.
-    let finalIntl, finalLocal;
-    const intlPromise = summarizeClusters(intlToSummarise).then(result => {
-      finalIntl = deduplicateByHeadline(result).slice(0, STORY_COUNTS.intl);
-      sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
-    });
-    await new Promise(r => setTimeout(r, 500));
-    const localPromise = summarizeClusters(localToSummarise).then(result => {
-      finalLocal = deduplicateByHeadline(result).slice(0, STORY_COUNTS.local);
-      sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
-    });
-    await Promise.all([intlPromise, localPromise]);
+    // ── Summarise sequentially — intl first, SSEs immediately, then local ───
+    // Sequential prevents Gemini rate-limit collisions. Each section SSEs as
+    // soon as it's ready so international stories appear before local.
+    const intlSummarized = await summarizeClusters(intlToSummarise);
+    const finalIntl = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
+    sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
+
+    const localSummarized = await summarizeClusters(localToSummarise);
+    const finalLocal = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
+    sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
 
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
 
