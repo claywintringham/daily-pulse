@@ -10,6 +10,11 @@
   const ttsCache         = new Map();
   let playAllActive      = false;
 
+  // iOS detection — Web Audio API is unreliable on iOS Safari due to
+  // AudioContext suspension behaviour; HTML Audio is more consistent.
+  const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   // Pre-fetch TTS audio for a list of stories in the background.
   // Fire-and-forget: results land in ttsCache so Play All is instant.
   function prefetchTts(stories) {
@@ -392,12 +397,16 @@
     btn.title = 'Stop reading';
     const lang = currentLang === 'zh' ? 'zh' : 'en';
 
+    // On iOS, skip Web Audio — AudioContext suspension is unreliable inside
+    // a user-gesture callback; HTML Audio handles it more consistently.
     let ctx = null;
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      ctx = audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
-    } catch { ctx = null; }
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx = audioCtx;
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch { ctx = null; }
+    }
 
     try {
       const cacheKey = id + ':' + lang;
@@ -608,12 +617,18 @@
     speakingId = id;
     const existingBtn = document.querySelector(`.story-speak-btn[data-id="${CSS.escape(id)}"]`);
     if (existingBtn) { existingBtn.classList.add('speaking'); existingBtn.title = 'Stop reading'; }
+
+    // On iOS, skip Web Audio — AudioContext suspension is unreliable inside
+    // a user-gesture callback; HTML Audio handles it more consistently.
     let ctx = null;
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      ctx = audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
-    } catch { ctx = null; }
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx = audioCtx;
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch { ctx = null; }
+    }
+
     try {
       const cacheKey = id + ':' + lang;
       let arrayBuffer = ttsCache.get(cacheKey);
@@ -698,10 +713,13 @@
 
     stopSpeaking();
 
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    } catch {}
+    // On iOS, skip Web Audio context setup — HTML Audio is used instead.
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+      } catch {}
+    }
 
     playAllActive = true;
     if (btn) { btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="2" width="4" height="12" rx="1"/></svg> Stop'; btn.classList.add('playing'); }
