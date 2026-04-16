@@ -681,7 +681,17 @@
         }
       });
     } catch (err) {
-      console.warn('[play-all] TTS error:', err.message);
+      console.warn('[play-all] TTS error, falling back to Web Speech:', err.message);
+      // Fall back to Web Speech API so Play All keeps working during TTS outages
+      if (window.speechSynthesis && playAllActive) {
+        await new Promise(resolve => {
+          const utt = new SpeechSynthesisUtterance(text);
+          utt.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
+          utt.rate = 0.95;
+          utt.onend = utt.onerror = resolve;
+          window.speechSynthesis.speak(utt);
+        });
+      }
       speakingId = null;
       if (existingBtn) { existingBtn.classList.remove('speaking'); existingBtn.title = 'Read aloud'; }
     }
