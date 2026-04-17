@@ -3,8 +3,8 @@
 // Runs international and local adapter fetching in parallel, then clusters
 // each section separately (sequential to space out LLM calls).
 //
-// Invoked by Vercel Cron every 20 minutes.
-// Also callable manually: GET /api/scrape
+// Invoked by Vercel Cron at 09:30 and 22:30 HKT.
+// Also callable manually: GET /api/scrape?cron=1
 
 import { runAllAdapters }           from '../lib/adapters/index.js';
 import { enrichWithRss }            from '../lib/matcher.js';
@@ -17,7 +17,7 @@ import { translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 
 export const config = { maxDuration: 300 };
 
-const SCRAPED_TTL  = 25 * 60; // 25 min — cron runs every 20 min, 5 min buffer
+const SCRAPED_TTL  = 60 * 60; // 1 hour
 const ENRICH_COUNT = { intl: 6, local: 4 };
 
 // ── RSS enrichment + translation helper ─────────────────────────────────
@@ -40,6 +40,12 @@ async function enrichAndTranslate(adapterResults) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const url    = new URL(req.url, `https://${req.headers.host}`);
+  const isCron = url.searchParams.get('cron') === '1';
+  if (isCron && req.headers['x-vercel-cron'] !== '1') {
+    return res.status(401).json({ error: 'Unauthorized: cron header missing' });
+  }
 
   const t0 = Date.now();
   console.log('[scrape] Starting dual-bucket scrape');
