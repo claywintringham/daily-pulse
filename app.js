@@ -10,6 +10,52 @@
   const ttsCache         = new Map();
   let playAllActive      = false;
 
+  // iOS detection — Web Audio API is unreliable on iOS Safari due to
+  // AudioContext suspension behaviour; HTML Audio is more consistent.
+  const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Pre-fetch TTS audio for the section labels (International / Hong Kong).
+  // Keyed as 'lbl:<label>:<lang>' so they never collide with story keys.
+  function prefetchLabels() {
+    const lang   = currentLang === 'zh' ? 'zh' : 'en';
+    const labels = [t('international'), t('hongKong')];
+    for (const label of labels) {
+      const cacheKey = 'lbl:' + label + ':' + lang;
+      if (ttsCache.has(cacheKey)) continue;
+      fetch('/api/tts', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: label, lang }),
+      })
+        .then(r => r.ok ? r.arrayBuffer() : null)
+        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
+        .catch(() => {});
+    }
+  }
+
+  // Pre-fetch TTS audio for a list of stories in the background.
+  // Fire-and-forget: results land in ttsCache so Play All is instant.
+  // Only called after the full digest has loaded to avoid competing
+  // with the main digest stream.
+  function prefetchTts(stories) {
+    if (!stories?.length) return;
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    for (const story of stories) {
+      const text = (story.headline ? story.headline + '. ' : '') + (story.summary || '');
+      if (!text.trim()) continue;
+      const cacheKey = story.id + ':' + lang;
+      if (ttsCache.has(cacheKey)) continue;
+      fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim(), lang }),
+      })
+        .then(r => r.ok ? r.arrayBuffer() : null)
+        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
+        .catch(() => {});
+    }
+  }
 
   const UI = {
     en: {
@@ -121,15 +167,13 @@
     if (!iso) return null;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return null;
-    const diffMs    = Date.now() - d.getTime();
-    const diffMins  = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays  = Math.floor(diffMs / 86400000);
-    if (diffMins  <  1) return 'just now';
-    if (diffMins  < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays  <  7) return `${diffDays}d ago`;
-    return d.toLocaleString(undefined, { day: 'numeric', month: 'short' });
+    const time = d.toLocaleString(undefined, {
+      hour: '2-digit', minute: '2-digit',
+    });
+    const date = d.toLocaleString(undefined, {
+      day: 'numeric', month: 'short',
+    });
+    return `${time} · ${date}`;
   }
 
 
@@ -149,7 +193,7 @@
   function escAttr(s) {
     return String(s)
       .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
+      .replace(/\"/g, '&quot;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
@@ -243,7 +287,7 @@
     const btnEn = document.getElementById('lang-en');
     const btnZh = document.getElementById('lang-zh');
     const main = document.getElementById('main-content');
-    const bar  = document.getElementById('translating-bar');
+    const bar  = document.getElementById('translating-overlay');
 
     if (lang === 'zh') {
       if (!currentDigestData) return;
@@ -372,12 +416,16 @@
     btn.title = 'Stop reading';
     const lang = currentLang === 'zh' ? 'zh' : 'en';
 
+    // On iOS, skip Web Audio — AudioContext suspension is unreliable inside
+    // a user-gesture callback; HTML Audio handles it more consistently.
     let ctx = null;
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      ctx = audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
-    } catch { ctx = null; }
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx = audioCtx;
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch { ctx = null; }
+    }
 
     try {
       const cacheKey = id + ':' + lang;
@@ -506,39 +554,62 @@
         let buf = '';
         let cleared = false;
         if (!currentDigestData) currentDigestData = { international: [], local: [] };
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n');
-          buf = lines.pop();
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            let evt;
-            try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-            if (evt.type === 'section') {
-              if (!cleared) { main.innerHTML = ''; cleared = true; }
-              const { section, stories } = evt;
-              const seenSet = new Set(Object.keys(getSeenHeadlines()));
-              if (section === 'international') {
-                currentDigestData.international = stories;
-                const html = renderSection(t('international'), stories, 'international', seenSet);
-                if (html) main.insertAdjacentHTML('beforeend', html);
-              } else if (section === 'local') {
-                currentDigestData.local = stories;
-                const seenSet2 = new Set(Object.keys(getSeenHeadlines()));
-                const html = renderSection(t('hongKong'), stories, 'local', seenSet2);
-                if (html) main.insertAdjacentHTML('beforeend', html);
-                markHeadlinesSeen([
-                  ...(currentDigestData.international || []),
-                  ...(currentDigestData.local         || []),
-                ].map(s => s.headline));
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+              if (evt.type === 'section') {
+                if (!cleared) { main.innerHTML = ''; cleared = true; }
+                const { section, stories } = evt;
+                const seenSet = new Set(Object.keys(getSeenHeadlines()));
+                if (section === 'international') {
+                  currentDigestData.international = stories;
+                  const html = renderSection(t('international'), stories, 'international', seenSet);
+                  if (html) main.insertAdjacentHTML('beforeend', html);
+                } else if (section === 'local') {
+                  currentDigestData.local = stories;
+                  const seenSet2 = new Set(Object.keys(getSeenHeadlines()));
+                  const html = renderSection(t('hongKong'), stories, 'local', seenSet2);
+                  if (html) main.insertAdjacentHTML('beforeend', html);
+                  markHeadlinesSeen([
+                    ...(currentDigestData.international || []),
+                    ...(currentDigestData.local         || []),
+                  ].map(s => s.headline));
+                }
+              } else if (evt.type === 'done') {
+                currentGeneratedAt = evt.generatedAt;
+                _finishLoad(evt.generatedAt);
+                // Prefetch TTS only after full digest is loaded, with a short
+                // delay so the browser can settle before background requests begin.
+                setTimeout(() => {
+                  prefetchLabels();
+                  prefetchTts([
+                    ...(currentDigestData.international || []),
+                    ...(currentDigestData.local         || []),
+                  ]);
+                }, 1500);
+              } else if (evt.type === 'error') {
+                if (!cleared) {
+                  meta.textContent = t('errMeta');
+                  main.innerHTML = `<div class="state-box">
+                    <h2>${t('errTitle')}</h2>
+                    <p>${evt.message || t('errRetry')}</p>
+                  </div>`;
+                }
               }
-            } else if (evt.type === 'done') {
-              currentGeneratedAt = evt.generatedAt;
-              _finishLoad(evt.generatedAt);
             }
           }
+        } catch (streamErr) {
+          if (!cleared) throw streamErr;
+          console.warn('[loadDigest] stream ended early:', streamErr.message);
+          if (!currentGeneratedAt) meta.textContent = t('errMeta');
         }
       } else {
         const data = await res.json();
@@ -546,8 +617,23 @@
         currentGeneratedAt = data.generatedAt;
         main.innerHTML = renderDigest(data);
         _finishLoad(data.generatedAt);
+        // Prefetch TTS after a short delay so the page renders first.
+        setTimeout(() => {
+          prefetchLabels();
+          prefetchTts([
+            ...(data.international || []),
+            ...(data.local         || []),
+          ]);
+        }, 1500);
       }
     } catch (err) {
+      const hasContent = ((currentDigestData?.international?.length ?? 0) +
+                          (currentDigestData?.local?.length ?? 0)) > 0;
+      if (hasContent) {
+        console.warn('[loadDigest] error after partial load:', err.message);
+        if (!currentGeneratedAt) meta.textContent = t('errMeta');
+        return;
+      }
       meta.textContent = t('errMeta');
       main.innerHTML = `<div class="state-box">
         <h2>${t('errTitle')}</h2>
@@ -564,12 +650,18 @@
     speakingId = id;
     const existingBtn = document.querySelector(`.story-speak-btn[data-id="${CSS.escape(id)}"]`);
     if (existingBtn) { existingBtn.classList.add('speaking'); existingBtn.title = 'Stop reading'; }
+
+    // On iOS, skip Web Audio — AudioContext suspension is unreliable inside
+    // a user-gesture callback; HTML Audio handles it more consistently.
     let ctx = null;
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      ctx = audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
-    } catch { ctx = null; }
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx = audioCtx;
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch { ctx = null; }
+    }
+
     try {
       const cacheKey = id + ':' + lang;
       let arrayBuffer = ttsCache.get(cacheKey);
@@ -622,9 +714,88 @@
         }
       });
     } catch (err) {
-      console.warn('[play-all] TTS error:', err.message);
+      console.warn('[play-all] TTS error, falling back to Web Speech:', err.message);
+      // Fall back to Web Speech API so Play All keeps working during TTS outages
+      if (window.speechSynthesis && playAllActive) {
+        await new Promise(resolve => {
+          const utt = new SpeechSynthesisUtterance(text);
+          utt.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
+          utt.rate = 0.95;
+          utt.onend = utt.onerror = resolve;
+          window.speechSynthesis.speak(utt);
+        });
+      }
       speakingId = null;
       if (existingBtn) { existingBtn.classList.remove('speaking'); existingBtn.title = 'Read aloud'; }
+    }
+  }
+
+  async function announceLabelAsync(label) {
+    if (!playAllActive) return;
+    const lang      = currentLang === 'zh' ? 'zh' : 'en';
+    const cacheKey  = 'lbl:' + label + ':' + lang;
+
+    let ctx = null;
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx = audioCtx;
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch { ctx = null; }
+    }
+
+    try {
+      let arrayBuffer = ttsCache.get(cacheKey);
+      if (!arrayBuffer) {
+        const res = await fetch('/api/tts', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ text: label, lang }),
+        });
+        if (!res.ok) throw new Error(`TTS ${res.status}`);
+        arrayBuffer = await res.arrayBuffer();
+        ttsCache.set(cacheKey, arrayBuffer);
+      }
+      if (!playAllActive) return;
+      await new Promise(resolve => {
+        const cleanup = () => { currentSource = null; resolve(); };
+        if (ctx) {
+          ctx.decodeAudioData(arrayBuffer.slice(0))
+            .then(audioBuffer => {
+              if (!playAllActive) { resolve(); return; }
+              const source = ctx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(ctx.destination);
+              source.onended = cleanup;
+              source.start(0);
+              currentSource = source;
+            })
+            .catch(() => {
+              const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+              const burl = URL.createObjectURL(blob);
+              const a = new Audio(burl);
+              a.onended = a.onerror = () => { URL.revokeObjectURL(burl); resolve(); };
+              a.play().catch(resolve);
+            });
+        } else {
+          const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+          const burl = URL.createObjectURL(blob);
+          const a = new Audio(burl);
+          a.onended = a.onerror = () => { URL.revokeObjectURL(burl); resolve(); };
+          a.play().catch(resolve);
+        }
+      });
+    } catch (err) {
+      console.warn('[tts] label TTS failed, falling back to Web Speech:', err.message);
+      if (window.speechSynthesis && playAllActive) {
+        await new Promise(resolve => {
+          const utt = new SpeechSynthesisUtterance(label);
+          utt.lang  = lang === 'zh' ? 'zh-CN' : 'en-US';
+          utt.rate  = 1.0;
+          utt.onend = utt.onerror = resolve;
+          window.speechSynthesis.speak(utt);
+        });
+      }
     }
   }
 
@@ -643,10 +814,13 @@
 
     stopSpeaking();
 
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    } catch {}
+    // On iOS, skip Web Audio context setup — HTML Audio is used instead.
+    if (!IS_IOS) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+      } catch {}
+    }
 
     playAllActive = true;
     if (btn) { btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="2" width="4" height="12" rx="1"/></svg> Stop'; btn.classList.add('playing'); }
@@ -659,9 +833,7 @@
       const [tag, stories] = section;
       if (!stories.length) continue;
       const label = tag === 'international' ? t('international') : t('hongKong');
-      // Route section headings through Gemini TTS so they use the same
-      // Mandarin voice as stories (zh-CN Web Speech fallback on outage).
-      await speakItemAsync('section-' + tag, label);
+      await announceLabelAsync(label);
       for (const c of stories) {
         if (!playAllActive) break;
         const { headline, summary } = getDisplayText(c);
