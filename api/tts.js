@@ -40,7 +40,9 @@ function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
 }
 
 // ── One attempt at calling Gemini TTS. Returns base64 PCM or throws. ─────────
-async function callGeminiTts(apiKey, truncated) {
+// Selects voice based on lang: Aoede for Mandarin Chinese, Kore for English.
+async function callGeminiTts(apiKey, truncated, lang = 'en') {
+  const voiceName = lang === 'zh' ? 'Aoede' : 'Kore';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
               `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
@@ -53,7 +55,7 @@ async function callGeminiTts(apiKey, truncated) {
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
+            prebuiltVoiceConfig: { voiceName },
           },
         },
       },
@@ -114,7 +116,7 @@ export default async function handler(req, res) {
   let lastErr = null;
   for (let attempt = 0; attempt <= BACKOFFS_MS.length; attempt++) {
     try {
-      const b64 = await callGeminiTts(apiKey, truncated);
+      const b64 = await callGeminiTts(apiKey, truncated, lang);
       const wav = pcmToWav(Buffer.from(b64, 'base64'));
 
       redisSet(cacheKey, { pcm: b64 }, 6 * 3600)
