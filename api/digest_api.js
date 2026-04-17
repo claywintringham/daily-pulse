@@ -324,11 +324,15 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
       // Avoids an outbound HTTP fetch when the adapter already returned article text.
       // Must pass a minimum word count AND excerptIsRelevant to filter out nav/ad
       // text that can appear in raw RSS description fields.
+      // Also explicitly rejects BBC nav bars and ad-feedback injections: these embed
+      // the actual article headline so they pass excerptIsRelevant(), but are still junk.
       const memberWithDesc = (c.members ?? []).find(m => m.description);
       if (memberWithDesc) {
         const sanitised = sanitiseExtract(memberWithDesc.description).slice(0, 1500);
         const wordCount = sanitised.split(/\s+/).filter(Boolean).length;
-        if (sanitised.length > 80 && wordCount >= 30 && excerptIsRelevant(c.headline, sanitised)) {
+        const isNavJunk = /^Home\s+News\s+Sport\b/i.test(sanitised.trim()) ||
+                          /\bAd\s+Feedback\b/i.test(sanitised);
+        if (!isNavJunk && sanitised.length > 80 && wordCount >= 30 && excerptIsRelevant(c.headline, sanitised)) {
           c.articleExcerpt = sanitised;
           return; // skip URL fetching
         }
@@ -408,7 +412,7 @@ function headlineOverlap(h1, h2) {
 function sourceOverlap(a, b) {
   const labelsA = new Set(a.members.map(m => m.label));
   let shared = 0;
-  for (const m of b.members) if (labelsA.has(m.label)) shared++;
+  for (const m of b.members) if (labelsA.has(m.label)) shared++; 
   return shared;
 }
 
