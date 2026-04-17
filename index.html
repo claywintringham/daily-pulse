@@ -417,6 +417,33 @@
       flex-shrink: 0;
     }
 
+    #translating-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      pointer-events: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    #translating-overlay.visible { display: flex; }
+    #translating-overlay .spinner {
+      width: 22px; height: 22px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--ink-mid);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #translating-overlay .overlay-text {
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--ink-mid);
+      letter-spacing: 0.05em;
+    }
+
 
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }
@@ -467,6 +494,11 @@
   <p>Daily Pulse aggregates news headlines from public news outlets.
   Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
 </footer>
+
+<div id="translating-overlay">
+  <div class="spinner"></div>
+  <span class="overlay-text">正在翻譯… Translating…</span>
+</div>
 
 <script src="/app.js"></script>
 </body>
