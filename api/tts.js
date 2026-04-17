@@ -4,10 +4,13 @@
 //
 // Caches responses in Redis (6-hour TTL) — repeat plays are instant.
 // Stores raw Gemini PCM base64 (not the wrapped WAV) to minimise Redis usage.
+//
+// Rate-limit handling: if Gemini returns 429, we wait 35 s then retry once.
+// maxDuration is set to 65 s to accommodate that wait.
 
 import { get as redisGet, set as redisSet } from '../lib/redis.js';
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 65 };
 
 // ── Tiny DJB2 hash for stable cache keys ──────────────────────────────────────
 function djb2(s) {
@@ -60,7 +63,7 @@ async function callGeminiTts(apiKey, truncated, lang = 'en') {
         },
       },
     }),
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!upstream.ok) {
@@ -111,10 +114,15 @@ export default async function handler(req, res) {
     console.log('[tts] Redis read miss (non-fatal):', e.message);
   }
 
-  // ── Call Gemini TTS with retry on transient failures ───────────────────────
-  const BACKOFFS_MS = [1500, 4000];
+  // ── Call Gemini TTS ──────────────────────────────────────────────────
+  // Retry strategy:
+  //   • 429 (rate limit): wait 35 s then retry once — stays within maxDuration.
+  //   • 500 / 503 / noAudio / timeout: quick retries (1.5 s, 4 s).
+  //   • Anything else (404, 400, …): fail immediately.
   let lastErr = null;
-  for (let attempt = 0; attempt <= BACKOFFS_MS.length; attempt++) {
+  let attempt = 0;
+
+  while (attempt < 3) {
     try {
       const b64 = await callGeminiTts(apiKey, truncated, lang);
       const wav = pcmToWav(Buffer.from(b64, 'base64'));
@@ -127,17 +135,33 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control',  'private, max-age=21600');
       res.setHeader('X-Cache',        'MISS');
       return res.status(200).send(wav);
+
     } catch (err) {
       lastErr = err;
+      attempt++;
+
+      if (err.status === 429) {
+        if (attempt === 1) {
+          // First 429: wait out the rate-limit window then try exactly once more.
+          console.log(`[tts] rate limited (429) — waiting 35 s before retry`);
+          await new Promise(r => setTimeout(r, 35_000));
+          continue;
+        }
+        // Second 429: give up.
+        break;
+      }
+
       const retryable =
-        err.noAudio ||
-        err.status === 429 ||
-        err.status === 500 ||  // Gemini 500s are often transient service errors
+        err.noAudio      ||
+        err.status === 500 ||
         err.status === 503 ||
         /timeout|abort/i.test(err.message || '');
-      if (!retryable || attempt === BACKOFFS_MS.length) break;
-      console.log(`[tts] attempt ${attempt + 1} failed (${err.status ?? 'timeout'}): ${err.message} — retrying in ${BACKOFFS_MS[attempt]}ms`);
-      await new Promise(r => setTimeout(r, BACKOFFS_MS[attempt]));
+
+      if (!retryable || attempt >= 3) break;
+
+      const waitMs = attempt === 1 ? 1500 : 4000;
+      console.log(`[tts] attempt ${attempt} failed (${err.status ?? 'timeout'}): ${err.message} — retrying in ${waitMs}ms`);
+      await new Promise(r => setTimeout(r, waitMs));
     }
   }
 
