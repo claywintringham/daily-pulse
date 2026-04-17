@@ -15,34 +15,45 @@
   const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // Pre-fetch TTS audio for section labels and all stories, staggered 400 ms
-  // apart to avoid hitting the Gemini TTS rate limit with simultaneous requests.
-  // Fire-and-forget: results land in ttsCache so Play All / individual plays
-  // are instant. Only called after the full digest has loaded.
-  async function prefetchAll(stories) {
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
-    const queue = [];
-    for (const label of [t('international'), t('hongKong')]) {
+  // Pre-fetch TTS audio for the section labels (International / Hong Kong).
+  // Keyed as 'lbl:<label>:<lang>' so they never collide with story keys.
+  function prefetchLabels() {
+    const lang   = currentLang === 'zh' ? 'zh' : 'en';
+    const labels = [t('international'), t('hongKong')];
+    for (const label of labels) {
       const cacheKey = 'lbl:' + label + ':' + lang;
-      if (!ttsCache.has(cacheKey)) queue.push({ cacheKey, text: label });
+      if (ttsCache.has(cacheKey)) continue;
+      fetch('/api/tts', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: label, lang }),
+      })
+        .then(r => r.ok ? r.arrayBuffer() : null)
+        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
+        .catch(() => {});
     }
-    for (const story of (stories || [])) {
+  }
+
+  // Pre-fetch TTS audio for a list of stories in the background.
+  // Fire-and-forget: results land in ttsCache so Play All is instant.
+  // Only called after the full digest has loaded to avoid competing
+  // with the main digest stream.
+  function prefetchTts(stories) {
+    if (!stories?.length) return;
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    for (const story of stories) {
       const text = (story.headline ? story.headline + '. ' : '') + (story.summary || '');
       if (!text.trim()) continue;
       const cacheKey = story.id + ':' + lang;
-      if (!ttsCache.has(cacheKey)) queue.push({ cacheKey, text: text.trim() });
-    }
-    for (const item of queue) {
-      if (ttsCache.has(item.cacheKey)) continue;
+      if (ttsCache.has(cacheKey)) continue;
       fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: item.text, lang }),
+        body: JSON.stringify({ text: text.trim(), lang }),
       })
         .then(r => r.ok ? r.arrayBuffer() : null)
-        .then(buf => { if (buf) ttsCache.set(item.cacheKey, buf); })
+        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
         .catch(() => {});
-      await new Promise(r => setTimeout(r, 400));
     }
   }
 
@@ -156,13 +167,15 @@
     if (!iso) return null;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString(undefined, {
-      hour: '2-digit', minute: '2-digit',
-    });
-    const date = d.toLocaleString(undefined, {
-      day: 'numeric', month: 'short',
-    });
-    return `${time} · ${date}`;
+    const diffMs    = Date.now() - d.getTime();
+    const diffMins  = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays  = Math.floor(diffMs / 86400000);
+    if (diffMins  <  1) return 'just now';
+    if (diffMins  < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays  <  7) return `${diffDays}d ago`;
+    return d.toLocaleString(undefined, { day: 'numeric', month: 'short' });
   }
 
 
@@ -182,7 +195,7 @@
   function escAttr(s) {
     return String(s)
       .replace(/&/g, '&amp;')
-      .replace(/\"/g, '&quot;')
+      .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
@@ -578,7 +591,8 @@
                 // Prefetch TTS only after full digest is loaded, with a short
                 // delay so the browser can settle before background requests begin.
                 setTimeout(() => {
-                  prefetchAll([
+                  prefetchLabels();
+                  prefetchTts([
                     ...(currentDigestData.international || []),
                     ...(currentDigestData.local         || []),
                   ]);
@@ -607,7 +621,8 @@
         _finishLoad(data.generatedAt);
         // Prefetch TTS after a short delay so the page renders first.
         setTimeout(() => {
-          prefetchAll([
+          prefetchLabels();
+          prefetchTts([
             ...(data.international || []),
             ...(data.local         || []),
           ]);
