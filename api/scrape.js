@@ -3,7 +3,7 @@
 // Runs international and local adapter fetching in parallel, then clusters
 // each section separately (sequential to space out LLM calls).
 //
-// Invoked by Vercel Cron at 09:30 and 22:30 HKT.
+// Invoked by Vercel Cron at 04:30, 09:30, 15:30 and 22:30 UTC.
 // Also callable manually: GET /api/scrape?cron=1
 
 import { runAllAdapters }           from '../lib/adapters/index.js';
@@ -17,7 +17,7 @@ import { translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 
 export const config = { maxDuration: 300 };
 
-const SCRAPED_TTL  = 60 * 60; // 1 hour
+const SCRAPED_TTL  = 8 * 60 * 60; // 8 h — covers the longest gap between cron runs
 const ENRICH_COUNT = { intl: 6, local: 4 };
 
 // ── RSS enrichment + translation helper ─────────────────────────────────
