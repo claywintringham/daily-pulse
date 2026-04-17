@@ -17,6 +17,8 @@
 
   // Pre-fetch TTS audio for a list of stories in the background.
   // Fire-and-forget: results land in ttsCache so Play All is instant.
+  // Only called after the full digest has loaded to avoid competing
+  // with the main digest stream.
   function prefetchTts(stories) {
     if (!stories?.length) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
