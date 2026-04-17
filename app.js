@@ -9,53 +9,14 @@
   let currentSource      = null;
   const ttsCache         = new Map();
   let playAllActive      = false;
-  let prefetchRunning    = false;  // guard: only one queue at a time
 
   // iOS detection — Web Audio API is unreliable on iOS Safari due to
   // AudioContext suspension behaviour; HTML Audio is more consistent.
   const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // Warm the TTS cache in the background after the digest loads.
-  // All items (section labels first, then stories) are processed in a single
-  // sequential queue — one request at a time — so we never fire concurrent
-  // calls to Gemini and stay well under the per-minute rate limit.
-  // Starts after an initial 4 s delay so the page can settle, then waits
-  // 4 s between each item.
-  async function prefetchTtsQueue(stories) {
-    if (prefetchRunning) return;   // don't stack up multiple queue runners
-    prefetchRunning = true;
-    const INITIAL_DELAY_MS = 4000;
-    const BETWEEN_MS       = 4000;
-    await new Promise(r => setTimeout(r, INITIAL_DELAY_MS));
-
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
-
-    // Build queue: section labels first, then stories in order.
-    const queue = [];
-    for (const label of [t('international'), t('hongKong')]) {
-      queue.push({ cacheKey: 'lbl:' + label + ':' + lang, text: label });
-    }
-    for (const story of (stories || [])) {
-      const text = (story.headline ? story.headline + '. ' : '') + (story.summary || '');
-      if (text.trim()) queue.push({ cacheKey: story.id + ':' + lang, text: text.trim() });
-    }
-
-    for (const item of queue) {
-      if (ttsCache.has(item.cacheKey)) continue;
-      try {
-        const r = await fetch('/api/tts', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ text: item.text, lang }),
-        });
-        const buf = r.ok ? await r.arrayBuffer() : null;
-        if (buf) ttsCache.set(item.cacheKey, buf);
-      } catch {}
-      await new Promise(r => setTimeout(r, BETWEEN_MS));
-    }
-    prefetchRunning = false;
-  }
+  // Prefetch is disabled — it was consuming the Gemini TTS quota
+  // (15 req/min) before users could play anything. On-demand only.
 
   const UI = {
     en: {
@@ -433,11 +394,19 @@
       const cacheKey = id + ':' + lang;
       let arrayBuffer = ttsCache.get(cacheKey);
       if (!arrayBuffer) {
-        const res = await fetch('/api/tts', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ text, lang }),
-        });
+        // Try up to 2 times — first attempt, then one retry after 8 s if rate-limited.
+        let res;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          res = await fetch('/api/tts', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ text, lang }),
+          });
+          if (res.ok || res.status !== 502) break;
+          if (attempt === 0 && speakingId === id) {
+            await new Promise(r => setTimeout(r, 8000));
+          }
+        }
         if (!res.ok) throw new Error(`TTS ${res.status}`);
         if (speakingId !== id) return;
         arrayBuffer = await res.arrayBuffer();
@@ -588,10 +557,6 @@
               } else if (evt.type === 'done') {
                 currentGeneratedAt = evt.generatedAt;
                 _finishLoad(evt.generatedAt);
-                prefetchTtsQueue([
-                  ...(currentDigestData.international || []),
-                  ...(currentDigestData.local         || []),
-                ]);
               } else if (evt.type === 'error') {
                 if (!cleared) {
                   meta.textContent = t('errMeta');
@@ -614,10 +579,6 @@
         currentGeneratedAt = data.generatedAt;
         main.innerHTML = renderDigest(data);
         _finishLoad(data.generatedAt);
-        prefetchTtsQueue([
-          ...(data.international || []),
-          ...(data.local         || []),
-        ]);
       }
     } catch (err) {
       const hasContent = ((currentDigestData?.international?.length ?? 0) +
