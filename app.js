@@ -268,7 +268,7 @@
     const btnEn = document.getElementById('lang-en');
     const btnZh = document.getElementById('lang-zh');
     const main = document.getElementById('main-content');
-    const bar  = document.getElementById('translating-bar');
+    const bar  = document.getElementById('translating-overlay');
 
     if (lang === 'zh') {
       if (!currentDigestData) return;
