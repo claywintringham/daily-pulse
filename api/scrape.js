@@ -1,146 +1,130 @@
-// ── api/scrape.js ─────────────────────────────────────────────────────────────
-// Function 1 of the two-function pipeline.
+// ── api/scrape.js ──────────────────────────────────────────────────────────
+// Pre-warms both section caches (scraped:international + scraped:local).
+// Runs international and local adapter fetching in parallel, then clusters
+// each section separately (sequential to space out LLM calls).
 //
-// Responsibilities:
-//   1. Run all active source adapters in parallel (DOM scraping).
-//   2. Enrich each adapter's item list with RSS metadata (URL, publishedAt).
-//   3. Build cross-source story clusters (Jaccard similarity).
-//   4. Score and rank clusters per bucket (international / local).
-//   5. Write raw scored clusters to Redis → key: `scraped:{type}`, TTL: 1 h.
-//
-// Invoked by:
-//   • Vercel Cron (prewarm):  /api/scrape?type=morning&cron=1
-//                             /api/scrape?type=evening&cron=1
-//   • api/digest.js (fallback, inline) when no pre-warmed data exists.
-//
-// Vercel config: maxDuration 300 s (Pro plan).
+// Invoked by Vercel Cron at 09:30 and 22:30 HKT.
+// Also callable manually: GET /api/scrape?cron=1
 
-import { runAllAdapters } from '../lib/adapters/index.js';
-import { enrichWithRss }  from '../lib/matcher.js';
-import { buildClusters }  from '../lib/cluster.js';
-import { scoreClusters }  from '../lib/scorer.js';
-import { getById }        from '../lib/sourceRegistry.js';
-import { set as redisSet } from '../lib/redis.js';
-import { translateHeadlines } from '../lib/llm.js';
+import { runAllAdapters }           from '../lib/adapters/index.js';
+import { enrichWithRss }            from '../lib/matcher.js';
+import { buildClusters }            from '../lib/cluster.js';
+import { enrichWithArticleContent } from '../lib/enricher.js';
+import { scoreClusters }            from '../lib/scorer.js';
+import { getById }                  from '../lib/sourceRegistry.js';
+import { set as redisSet }          from '../lib/redis.js';
+import { translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 
 export const config = { maxDuration: 300 };
 
-const SCRAPED_TTL = 60 * 60; // 1 hour
+const SCRAPED_TTL  = 60 * 60; // 1 hour
+const ENRICH_COUNT = { intl: 6, local: 4 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function detectType(req) {
-  const url   = new URL(req.url, `https://${req.headers.host}`);
-  const param = url.searchParams.get('type');
-  if (param === 'morning' || param === 'evening') return param;
-  // Auto-detect from HKT (UTC+8)
-  const hktHour = (new Date().getUTCHours() + 8) % 24;
-  return hktHour < 13 ? 'morning' : 'evening';
+// ── RSS enrichment + translation helper ─────────────────────────────────
+async function enrichAndTranslate(adapterResults) {
+  const enriched = await Promise.all(
+    adapterResults.map(async src => {
+      const def = getById(src.sourceId);
+      return { ...src, items: await enrichWithRss(src.items ?? [], def?.rssUrl ?? null) };
+    })
+  );
+  return Promise.all(
+    enriched.map(async src => {
+      if (!getById(src.sourceId)?.needsTranslation || !src.items?.length) return src;
+      return { ...src, items: await translateHeadlines(src.items) };
+    })
+  );
 }
 
-// ── Handler ───────────────────────────────────────────────────────────────────
-
+// ── Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const url    = new URL(req.url, `https://${req.headers.host}`);
   const isCron = url.searchParams.get('cron') === '1';
-  const type   = detectType(req);
-
-  // Vercel sets the x-vercel-cron header on genuine cron invocations.
-  // Reject spoofed cron requests from the public internet.
   if (isCron && req.headers['x-vercel-cron'] !== '1') {
     return res.status(401).json({ error: 'Unauthorized: cron header missing' });
   }
 
   const t0 = Date.now();
-  console.log(`[scrape] Starting ${type} scrape (cron=${isCron})`);
+  console.log('[scrape] Starting dual-bucket scrape');
 
   try {
-    // ── Step 1: Run all active adapters ────────────────────────────────────
-    const adapterResults = await runAllAdapters();
-    console.log(
-      `[scrape] ${adapterResults.length} adapter(s) completed in ${Date.now() - t0} ms`
-    );
+    // ── Step 1: Fetch both buckets in parallel (HTTP only, no LLM) ────────
+    const [intlAdapters, localAdapters] = await Promise.all([
+      runAllAdapters('international'),
+      runAllAdapters('local'),
+    ]);
+    console.log(`[scrape] Adapters done ${Date.now() - t0}ms — intl:${intlAdapters.length} local:${localAdapters.length}`);
 
-    // Log any low-confidence or failed adapters
-    for (const r of adapterResults) {
-      if (r.scrapeConfidence === 'low' || r.scrapeConfidence === 'none') {
-        console.warn(`[scrape] Low confidence: ${r.sourceId} (${r.scrapeConfidence})`, r.warnings);
-      }
-    }
+    // ── Step 2: RSS enrichment + translation for both (parallel, no LLM) ────
+    const [intlReady, localReady] = await Promise.all([
+      enrichAndTranslate(intlAdapters),
+      enrichAndTranslate(localAdapters),
+    ]);
+    console.log(`[scrape] Enrichment + translation done ${Date.now() - t0}ms`);
 
-    // ── Step 2: RSS enrichment (parallel, one fetch per source) ────────────
-    const enriched = await Promise.all(
-      adapterResults.map(async src => {
-        const def          = getById(src.sourceId);
-        const rssUrl       = def?.rssUrl ?? null;
-        const enrichedItems = await enrichWithRss(src.items ?? [], rssUrl);
-        return { ...src, items: enrichedItems };
-      })
-    );
-    console.log(`[scrape] RSS enrichment done in ${Date.now() - t0} ms`);
+    // ── Step 3: Cluster each bucket (sequential — spaces out LLM calls) ─────
+    const intlClusters = await buildClusters(intlReady, clusterHeadlines);
+    console.log(`[scrape] Intl clustered: ${intlClusters.length} clusters ${Date.now() - t0}ms`);
 
-    // ── Step 2.5: Translate Chinese-language headlines ──────────────────────
-    // Sources flagged needsTranslation:true have Chinese titles that must be
-    // converted to English before Jaccard clustering can match them against
-    // English-language sources.
-    const enrichedFinal = await Promise.all(
-      enriched.map(async src => {
-        if (!getById(src.sourceId)?.needsTranslation || !src.items?.length) return src;
-        const translated = await translateHeadlines(src.items);
-        return { ...src, items: translated };
-      })
-    );
-    console.log(`[scrape] Translation done in ${Date.now() - t0} ms`);
+    await new Promise(r => setTimeout(r, 2000));
 
-    // ── Step 3: Cross-source clustering ────────────────────────────────────
-    const clusters = buildClusters(enrichedFinal);
-    console.log(`[scrape] Built ${clusters.length} cluster(s)`);
+    const localClusters = await buildClusters(localReady, clusterHeadlines);
+    console.log(`[scrape] Local clustered: ${localClusters.length} clusters ${Date.now() - t0}ms`);
 
     // ── Step 4: Score per bucket ────────────────────────────────────────────
-    const intlScored  = scoreClusters(clusters, 'international');
-    const localScored = scoreClusters(clusters, 'local');
-    console.log(
-      `[scrape] Scored: ${intlScored.length} international, ${localScored.length} local`
-    );
+    const intlScored  = scoreClusters(intlClusters,  'international');
+    const localScored = scoreClusters(localClusters, 'local');
+    console.log(`[scrape] Scored: ${intlScored.length} intl, ${localScored.length} local`);
 
-    // ── Step 5: Write to Redis ──────────────────────────────────────────────
-    const payload = {
-      type,
-      scrapedAt:     new Date().toISOString(),
-      international: intlScored,
-      local:         localScored,
-      adapterMeta:   adapterResults.map(r => ({
-        sourceId:         r.sourceId,
-        scrapeConfidence: r.scrapeConfidence,
-        itemCount:        (r.items ?? []).length,
-        warnings:         r.warnings ?? [],
-      })),
-    };
+    // ── Step 5: Article enrichment for top N clusters (parallel, HTTP) ───────
+    const topIntl  = intlScored.slice(0,  ENRICH_COUNT.intl);
+    const topLocal = localScored.slice(0, ENRICH_COUNT.local);
+    console.log(`[scrape] Enriching ${topIntl.length + topLocal.length} clusters…`);
+    await Promise.all([
+      enrichWithArticleContent(topIntl,  { useFirecrawl: true }),
+      enrichWithArticleContent(topLocal, { useFirecrawl: true }),
+    ]);
+    console.log(`[scrape] Article enrichment done ${Date.now() - t0}ms`);
 
-    await redisSet(`scraped:${type}`, payload, SCRAPED_TTL);
-    console.log(
-      `[scrape] Written scraped:${type} to Redis. Total elapsed: ${Date.now() - t0} ms`
-    );
+    // ── Step 6: Write to Redis ──────────────────────────────────────────────
+    const scrapedAt = new Date().toISOString();
+    const intlMeta  = intlAdapters.map(r => ({
+      sourceId: r.sourceId, scrapeConfidence: r.scrapeConfidence,
+      itemCount: (r.items ?? []).length, warnings: r.warnings ?? [],
+    }));
+    const localMeta = localAdapters.map(r => ({
+      sourceId: r.sourceId, scrapeConfidence: r.scrapeConfidence,
+      itemCount: (r.items ?? []).length, warnings: r.warnings ?? [],
+    }));
+
+    await Promise.all([
+      redisSet('scraped:international', { scrapedAt, clusters: intlScored,  adapterMeta: intlMeta  }, SCRAPED_TTL),
+      redisSet('scraped:local',         { scrapedAt, clusters: localScored, adapterMeta: localMeta }, SCRAPED_TTL),
+    ]);
+    console.log(`[scrape] Redis written. Total elapsed: ${Date.now() - t0}ms`);
 
     return res.status(200).json({
-      ok:            true,
-      type,
+      ok: true,
       intlClusters:  intlScored.length,
       localClusters: localScored.length,
       elapsedMs:     Date.now() - t0,
-      // Debug: per-source adapter results so we can diagnose selector mismatches
-      adapterMeta: adapterResults.map(r => ({
-        sourceId:         r.sourceId,
-        scrapeConfidence: r.scrapeConfidence,
-        itemCount:        (r.items ?? []).length,
-        warnings:         r.warnings ?? [],
-        // Show first 3 item titles so we can verify selectors are hitting real headlines
-        sampleTitles:     (r.items ?? []).slice(0, 3).map(i => i.title),
-      })),
+      adapterMeta: [
+        ...intlAdapters.map(r => ({
+          sourceId: r.sourceId, scrapeConfidence: r.scrapeConfidence,
+          itemCount: (r.items ?? []).length,
+          sampleTitles: (r.items ?? []).slice(0, 3).map(i => i.title),
+        })),
+        ...localAdapters.map(r => ({
+          sourceId: r.sourceId, scrapeConfidence: r.scrapeConfidence,
+          itemCount: (r.items ?? []).length,
+          sampleTitles: (r.items ?? []).slice(0, 3).map(i => i.title),
+        })),
+      ],
     });
+
   } catch (err) {
     console.error('[scrape] Fatal error:', err);
     return res.status(500).json({ error: err.message });
