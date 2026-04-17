@@ -4,9 +4,6 @@
     "api/digest.js": { "maxDuration": 120 }
   },
   "crons": [
-    { "path": "/api/scrape", "schedule": "30 22 * * *" },
-    { "path": "/api/scrape", "schedule": "30 9 * * *" },
-    { "path": "/api/scrape", "schedule": "30 4 * * *" },
-    { "path": "/api/scrape", "schedule": "30 15 * * *" }
+    { "path": "/api/scrape", "schedule": "*/20 * * * *" }
   ]
 }
