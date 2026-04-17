@@ -9,6 +9,7 @@
   let currentSource      = null;
   const ttsCache         = new Map();
   let playAllActive      = false;
+  let prefetchRunning    = false;  // guard: only one queue at a time
 
   // iOS detection — Web Audio API is unreliable on iOS Safari due to
   // AudioContext suspension behaviour; HTML Audio is more consistent.
@@ -22,6 +23,8 @@
   // Starts after an initial 4 s delay so the page can settle, then waits
   // 4 s between each item.
   async function prefetchTtsQueue(stories) {
+    if (prefetchRunning) return;   // don't stack up multiple queue runners
+    prefetchRunning = true;
     const INITIAL_DELAY_MS = 4000;
     const BETWEEN_MS       = 4000;
     await new Promise(r => setTimeout(r, INITIAL_DELAY_MS));
@@ -51,6 +54,7 @@
       } catch {}
       await new Promise(r => setTimeout(r, BETWEEN_MS));
     }
+    prefetchRunning = false;
   }
 
   const UI = {
@@ -699,7 +703,7 @@
           const a = new Audio(burl);
           currentAudio = a;
           a.onended = a.onerror = () => { URL.revokeObjectURL(burl); currentAudio = null; cleanup(); };
-          a.play().catch(resolve);
+          a.play().catch(cleanup);
         }
       });
     } catch (err) {

@@ -1,4 +1,4 @@
-// ── api/tts.js ──────────────────────────────────────────────────────────────────────────────
+// ── api/tts.js ────────────────────────────────────────────────────────────────
 // Gemini 2.5 Flash TTS proxy for both English and Chinese Mandarin.
 // Accepts POST { text, lang }, returns audio/wav binary.
 //
@@ -9,14 +9,14 @@ import { get as redisGet, set as redisSet } from '../lib/redis.js';
 
 export const config = { maxDuration: 30 };
 
-// ── Tiny DJB2 hash for stable cache keys ────────────────────────────────────────────
+// ── Tiny DJB2 hash for stable cache keys ──────────────────────────────────────
 function djb2(s) {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
   return (h >>> 0).toString(36);
 }
 
-// ── PCM → WAV ─────────────────────────────────────────────────────────────────────────────
+// ── PCM → WAV ─────────────────────────────────────────────────────────────────
 function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
   const dataSize = pcm.length;
   const buf      = Buffer.alloc(44 + dataSize);
@@ -44,7 +44,7 @@ function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
 async function callGeminiTts(apiKey, truncated, lang = 'en') {
   const voiceName = lang === 'zh' ? 'Aoede' : 'Kore';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-              `gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`;
+              `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
   const upstream = await fetch(url, {
     method:  'POST',
@@ -81,7 +81,7 @@ async function callGeminiTts(apiKey, truncated, lang = 'en') {
   return b64;
 }
 
-// ── Handler ──────────────────────────────────────────────────────────────────────────────
+// ── Handler ────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -96,7 +96,7 @@ export default async function handler(req, res) {
   const truncated  = text.slice(0, 3000);
   const cacheKey   = `tts2:${djb2(truncated + '|' + lang)}`;
 
-  // ── Redis cache hit → instant playback ───────────────────────────────────────────
+  // ── Redis cache hit → instant playback ─────────────────────────────────────
   try {
     const cached = await redisGet(cacheKey);
     if (cached?.pcm) {
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
     console.log('[tts] Redis read miss (non-fatal):', e.message);
   }
 
-  // ── Call Gemini TTS with retry on transient failures ─────────────────────────
+  // ── Call Gemini TTS with retry on transient failures ───────────────────────
   const BACKOFFS_MS = [1500, 4000];
   let lastErr = null;
   for (let attempt = 0; attempt <= BACKOFFS_MS.length; attempt++) {
