@@ -70,7 +70,6 @@
       letter-spacing: 0.04em;
     }
 
-
     /* ── Layout ─────────────────────────────────────────────────────── */
     .container {
       max-width: 780px;
@@ -103,7 +102,7 @@
       background: var(--rule);
     }
 
-    /* ── Story cards ────────────────────────────────���───────────────── */
+    /* ── Story cards ────────────────────────────────────────────────── */
     .story-card {
       border-bottom: 1px solid var(--rule);
       padding: 1.2rem 0 1.1rem;
@@ -352,6 +351,27 @@
     .refresh-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
     .refresh-btn:disabled { opacity: 0.45; cursor: default; }
 
+    .play-all-btn {
+      font-family: var(--ui);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--ink-mid);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: 0.22rem 0.6rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+
+    .play-all-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
+    .play-all-btn:disabled { opacity: 0.45; cursor: default; }
+    .play-all-btn.playing  { color: var(--accent); border-color: var(--accent); }
+
     .lang-toggle {
       display: inline-flex;
       border: 1px solid var(--rule);
@@ -391,6 +411,33 @@
     }
     .translating-bar.visible { display: block; }
 
+    #translating-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      pointer-events: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    #translating-overlay.visible { display: flex; }
+    #translating-overlay .spinner {
+      width: 22px; height: 22px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--ink-mid);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #translating-overlay .overlay-text {
+      font-family: var(--ui);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--ink-mid);
+      letter-spacing: 0.05em;
+    }
+
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }
@@ -408,13 +455,21 @@
     <p class="masthead-meta" id="meta-line">Loading…</p>
     <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
     <div class="masthead-controls">
-      <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()">
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
-          <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
-        </svg>
-        Get Latest
-      </button>
+      <div style="display:inline-flex;align-items:center;gap:0.5rem;">
+        <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()" title="Refresh digest" aria-label="Refresh digest">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+            <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+          </svg>
+          Get Latest
+        </button>
+        <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+          </svg>
+          Play All
+        </button>
+      </div>
       <div class="lang-toggle">
         <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
         <button id="lang-zh" onclick="setLang('zh')">中</button>
@@ -437,540 +492,11 @@
   Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
 </footer>
 
-<script>
-  let currentDigestData  = null;
-  let currentLang        = 'en';
-  let translationCache   = null;   // { [clusterId]: { headline, summary } }
-  let currentGeneratedAt = null;
-  let speakingId         = null;   // cluster id currently being read aloud, or null
-  let currentAudio       = null;   // HTMLAudioElement currently playing
+<div id="translating-overlay">
+  <div class="spinner"></div>
+  <span class="overlay-text">正在翻譯… Translating…</span>
+</div>
 
-  // ── UI string translations ─────────────────────────────────────────
-  const UI = {
-    en: {
-      updated:       'Updated',
-      learnMore:     'Learn more →',
-      firstReported: 'First reported',
-      breaking:      'Breaking',
-      newBadge:      'New',
-      international: 'International',
-      hongKong:      'Hong Kong',
-      loadingTitle:  'Fetching the latest digest…',
-      loadingBody:   'This usually takes a minute.',
-      noStoriesTitle:'No stories yet',
-      noStoriesBody: 'The digest is being generated. Check back in a moment.',
-      errTitle:      'Something went wrong',
-      errRetry:      'Try refreshing, or check back in a few minutes.',
-      errMeta:       'Could not load digest',
-    },
-    zh: {
-      updated:       '更新於',
-      learnMore:     '了解更多 →',
-      firstReported: '首報',
-      breaking:      '突發',
-      newBadge:      '最新',
-      international: '國際',
-      hongKong:      '香港',
-      loadingTitle:  '正在載入最新摘要…',
-      loadingBody:   '通常只需幾秒鐘。',
-      noStoriesTitle:'暫無新聞',
-      noStoriesBody: '摘要正在生成中，請稍後再查看。',
-      errTitle:      '發生錯誤',
-      errRetry:      '請重新整理，或稍後再試。',
-      errMeta:       '無法載入摘要',
-    },
-  };
-  function t(key) { return UI[currentLang]?.[key] ?? UI.en[key] ?? key; }
-
-  // ── "New" story tracking via localStorage ─────────────────────────
-  // Headlines are stored with a timestamp so entries older than 36 hours
-  // are pruned automatically (matching the digest's rolling window).
-  const SEEN_TTL_MS = 36 * 60 * 60 * 1000;
-
-  function getSeenHeadlines() {
-    try {
-      const raw = JSON.parse(localStorage.getItem('dp_seen') || '{}');
-      const cutoff = Date.now() - SEEN_TTL_MS;
-      const pruned = {};
-      for (const [k, v] of Object.entries(raw)) {
-        if (v > cutoff) pruned[k] = v;
-      }
-      return pruned; // { headline: firstSeenTimestamp }
-    } catch { return {}; }
-  }
-
-  function markHeadlinesSeen(headlines) {
-    try {
-      const seen = getSeenHeadlines();
-      const now  = Date.now();
-      for (const h of headlines) {
-        if (!seen[h]) seen[h] = now;
-      }
-      localStorage.setItem('dp_seen', JSON.stringify(seen));
-    } catch {}
-  }
-
-  // ── Language + translation-cache persistence ───────────────────────
-  // dp_lang          → 'en' | 'zh'
-  // dp_xlat_{genAt}  → JSON translation cache for that exact digest version.
-  //                    Old entries are pruned whenever a new version is saved
-  //                    so storage doesn't grow unboundedly.
-  const LS_LANG     = 'dp_lang';
-  const LS_XLAT_PFX = 'dp_xlat_';
-
-  function saveLang(lang) {
-    try { localStorage.setItem(LS_LANG, lang); } catch {}
-  }
-
-  function loadLang() {
-    try { return localStorage.getItem(LS_LANG) || 'en'; } catch { return 'en'; }
-  }
-
-  function saveXlatCache(generatedAt, cache) {
-    try {
-      // Prune any stale xlat entries before writing the new one
-      const target = LS_XLAT_PFX + generatedAt;
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(LS_XLAT_PFX) && k !== target) keys.push(k);
-      }
-      keys.forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(target, JSON.stringify(cache));
-    } catch {}
-  }
-
-  function loadXlatCache(generatedAt) {
-    try {
-      const raw = localStorage.getItem(LS_XLAT_PFX + generatedAt);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
-
-  // ── Formatting helpers ─────────────────────────────────────────────
-  function fmtDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleString(undefined, {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  }
-
-  // Format publication time compactly: "3:15 pm · 12 Apr"
-  function fmtPublished(iso) {
-    if (!iso) return null;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return null;
-    const time = d.toLocaleString(undefined, {
-      hour: '2-digit', minute: '2-digit',
-    });
-    const date = d.toLocaleString(undefined, {
-      day: 'numeric', month: 'short',
-    });
-    return `${time} · ${date}`;
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────
-  function renderChips(sources) {
-    return sources.map(s => {
-      if (s.paywalled) {
-        // Paywalled source: greyed out, no link, lock icon
-        return `<span class="chip paywalled" title="Paywalled">${s.name} <span class="chip-pos">#${s.position}</span> 🔒</span>`;
-      }
-      if (!s.url) {
-        // Free source but no confirmed article URL — plain unlinked chip, no lock
-        return `<span class="chip unlinked">${s.name} <span class="chip-pos">#${s.position}</span></span>`;
-      }
-      return `<a class="chip" href="${s.url}" target="_blank" rel="noopener">${s.name} <span class="chip-pos">#${s.position}</span></a>`;
-    }).join('');
-  }
-
-  // Safely encode a value for use inside an HTML attribute (double-quoted).
-  function escAttr(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  function getDisplayText(c) {
-    if (currentLang === 'zh' && translationCache?.[c.id]) {
-      return {
-        headline: translationCache[c.id].headline,
-        summary:  translationCache[c.id].summary,
-      };
-    }
-    return { headline: c.headline, summary: c.summary };
-  }
-
-  function renderCluster(c, tag, isNew) {
-    const { headline: displayHeadline, summary: displaySummary } = getDisplayText(c);
-
-    const breakingBadge = c.isBreaking ? `<span class="breaking-badge">${t('breaking')}</span>` : '';
-    const newBadge      = isNew        ? `<span class="new-badge">${t('newBadge')}</span>`      : '';
-    const badge = breakingBadge || newBadge;
-    const headlineHtml = c.readUrl
-      ? `${badge}<a href="${c.readUrl}" target="_blank" rel="noopener">${displayHeadline}</a>`
-      : `${badge}${displayHeadline}`;
-    const pubTime  = fmtPublished(c.publishedAt);
-    const timeHtml = pubTime ? `<time class="story-time">${t('firstReported')} ${pubTime}</time>` : '';
-
-    const learnMoreHtml = c.learnMoreUrl
-      ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>`
-      : '';
-
-    const copyBtn = `<button class="story-copy-btn"
-      data-headline="${escAttr(displayHeadline)}"
-      data-summary="${escAttr(displaySummary || '')}"
-      data-url="${escAttr(c.learnMoreUrl || c.readUrl || '')}"
-      data-tag="${escAttr(tag || '')}"
-      onclick="copyStory(this)"
-      title="Copy story">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/>
-      </svg>
-    </button>`;
-
-    const speakText = (displayHeadline ? displayHeadline + '. ' : '') + (displaySummary || '');
-    const speakBtn = `<button class="story-speak-btn"
-      data-id="${escAttr(c.id)}"
-      data-text="${escAttr(speakText)}"
-      onclick="speakStory(this)"
-      title="Read aloud">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/>
-        <path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/>
-        <path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/>
-      </svg>
-    </button>`;
-
-    const footer = (learnMoreHtml || copyBtn || speakBtn)
-      ? `<div class="story-footer">${learnMoreHtml}${copyBtn}${speakBtn}</div>`
-      : '';
-
-    return `
-      <article class="story-card">
-        <h2 class="story-headline">${headlineHtml}</h2>
-        ${timeHtml}
-        <p class="story-summary">${displaySummary || ''}</p>
-        <div class="story-chips">${renderChips(c.sources)}</div>
-        ${footer}
-      </article>`;
-  }
-
-  function renderSection(label, clusters, tag, seenSet) {
-    if (!clusters || clusters.length === 0) return '';
-    return `
-      <div class="section-header">
-        <span class="section-label">${label}</span>
-        <span class="section-rule"></span>
-      </div>
-      ${clusters.map(c => renderCluster(c, tag, !seenSet.has(c.headline))).join('')}`;
-  }
-
-  // ── Language helpers ───────────────────────────────────────────────
-  function updateMetaLine() {
-    const meta = document.getElementById('meta-line');
-    if (meta && currentGeneratedAt) {
-      meta.textContent = `${t('updated')} ${fmtDate(currentGeneratedAt)}`;
-    }
-  }
-
-  async function setLang(lang) {
-    // Allow zh to proceed even when currentLang is already 'zh' if the
-    // translation cache is missing — this happens when the digest has been
-    // regenerated after a page re-open and the cache entry is stale.
-    if (lang === currentLang && !(lang === 'zh' && !translationCache)) return;
-    stopSpeaking(); // cancel any in-progress reading when switching language
-    const btnEn = document.getElementById('lang-en');
-    const btnZh = document.getElementById('lang-zh');
-
-    const main = document.getElementById('main-content');
-    const bar  = document.getElementById('translating-bar');
-
-    if (lang === 'zh') {
-      if (!currentDigestData) return;
-      btnEn.disabled = btnZh.disabled = true;
-      btnZh.textContent = '…';
-
-      if (!translationCache) {
-        // Show fade + translating label while the Gemini call runs (~10 s)
-        if (main) main.classList.add('translating');
-        if (bar)  bar.classList.add('visible');
-
-        const items = [
-          ...(currentDigestData.international || []),
-          ...(currentDigestData.local         || []),
-        ].map(c => ({ id: c.id, headline: c.headline, summary: c.summary || '' }));
-
-        try {
-          const res = await fetch('/api/translate', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ items }),
-          });
-          if (!res.ok) throw new Error(`translate API ${res.status}`);
-          const data = await res.json();
-          translationCache = Object.fromEntries(
-            (data.items || []).map(it => [it.id, it])
-          );
-          // Persist so the next open/refresh is instant
-          if (currentGeneratedAt) saveXlatCache(currentGeneratedAt, translationCache);
-        } catch (err) {
-          console.error('[lang] translation failed:', err);
-          if (main) main.classList.remove('translating');
-          if (bar)  bar.classList.remove('visible');
-          btnEn.disabled = btnZh.disabled = false;
-          btnZh.textContent = '中';
-          return;
-        }
-
-        if (main) main.classList.remove('translating');
-        if (bar)  bar.classList.remove('visible');
-      }
-
-      currentLang = 'zh';
-      saveLang('zh');
-      btnZh.textContent = '中';
-      btnZh.classList.add('active');
-      btnEn.classList.remove('active');
-      btnEn.disabled = btnZh.disabled = false;
-
-    } else {
-      currentLang = 'en';
-      saveLang('en');
-      btnEn.classList.add('active');
-      btnZh.classList.remove('active');
-    }
-
-    updateMetaLine();
-    if (currentDigestData) {
-      document.getElementById('main-content').innerHTML = renderDigest(currentDigestData);
-    }
-  }
-
-  async function handleRefresh() {
-    stopSpeaking(); // stop reading before fetching new stories
-    const btn = document.getElementById('refresh-btn');
-    btn.disabled = true;
-    // Clear in-memory cache — loadDigest will restore from localStorage if
-    // the digest hasn't changed, or call the translate API if it has.
-    translationCache = null;
-    await loadDigest();
-    btn.disabled = false;
-  }
-
-  // ── Copy-to-clipboard (per story) ─────────────────────────────────
-  // Copies a single story in Markdown-friendly format:
-  //   Headline
-  //   Summary [(link)](url) #tag
-  function copyStory(btn) {
-    const headline = btn.dataset.headline || '';
-    const summary  = btn.dataset.summary  || '';
-    const url      = btn.dataset.url      || '';
-    const tag      = btn.dataset.tag      || '';
-
-    const linkPart = url ? ` [(link)](${url})` : '';
-    const tagPart  = tag ? ` #${tag}` : '';
-    const text = `${summary}${linkPart}${tagPart}`;
-
-    const finish = () => {
-      btn.classList.add('copied');
-      const origTitle = btn.title;
-      btn.title = 'Copied!';
-      setTimeout(() => { btn.classList.remove('copied'); btn.title = origTitle; }, 2000);
-    };
-
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
-    } else {
-      fallbackCopy(text, finish);
-    }
-  }
-
-  function fallbackCopy(text, cb) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); cb(); } catch {}
-    document.body.removeChild(ta);
-  }
-
-  // ── Text-to-speech ────────────────────────────────────────────────
-  // Both EN and ZH go through /api/tts → Gemini 2.5 Flash TTS.
-  // Gemini auto-detects language, so no voice-ID or routing needed here.
-  // Web Speech API is kept as a last-resort fallback if the API fails.
-
-  function stopSpeaking() {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.src = '';
-      currentAudio = null;
-    }
-    // Also cancel any Web Speech fallback that may be running
-    try { if (window.speechSynthesis?.speaking) window.speechSynthesis.cancel(); } catch {}
-    speakingId = null;
-    document.querySelectorAll('.story-speak-btn.speaking').forEach(b => {
-      b.classList.remove('speaking');
-      b.title = 'Read aloud';
-    });
-  }
-
-  async function speakStory(btn) {
-    const id         = btn.dataset.id;
-    const text       = btn.dataset.text;
-    const wasPlaying = (speakingId === id);
-
-    stopSpeaking();
-    if (wasPlaying || !id) return;
-
-    speakingId = id;
-    btn.classList.add('speaking');
-    btn.title = 'Stop reading';
-
-    const lang = currentLang === 'zh' ? 'zh' : 'en';
-
-    try {
-      const res = await fetch('/api/tts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, lang }),
-      });
-      if (!res.ok) throw new Error(`TTS ${res.status}`);
-      if (speakingId !== id) return;
-
-      const blob  = await res.blob();
-      const url   = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudio = audio;
-
-      const cleanup = () => {
-        URL.revokeObjectURL(url);
-        if (speakingId === id) {
-          speakingId   = null;
-          currentAudio = null;
-          btn.classList.remove('speaking');
-          btn.title = 'Read aloud';
-        }
-      };
-      audio.onended = cleanup;
-      audio.onerror = cleanup;
-      audio.play().catch(cleanup);
-
-    } catch (err) {
-      // Last-resort fallback: browser Web Speech API
-      console.warn('[tts] API failed, falling back to Web Speech:', err.message);
-      if (window.speechSynthesis && speakingId === id) {
-        const utt  = new SpeechSynthesisUtterance(text);
-        utt.lang   = lang === 'zh' ? 'zh-CN' : 'en-US';
-        utt.rate   = 0.95;
-        const done = () => {
-          if (speakingId === id) {
-            speakingId = null;
-            btn.classList.remove('speaking');
-            btn.title = 'Read aloud';
-          }
-        };
-        utt.onend = utt.onerror = done;
-        window.speechSynthesis.speak(utt);
-      } else if (speakingId === id) {
-        speakingId = null;
-        btn.classList.remove('speaking');
-        btn.title = 'Read aloud';
-      }
-    }
-  }
-
-  function renderDigest(data) {
-    // Load seen headlines BEFORE rendering so badges reflect prior visits
-    const seenMap  = getSeenHeadlines();
-    const seenSet  = new Set(Object.keys(seenMap));
-
-    const intl  = renderSection(t('international'), data.international, 'international', seenSet);
-    const local = renderSection(t('hongKong'),      data.local,         'local',         seenSet);
-
-    if (!intl && !local) {
-      return `<div class="state-box"><h2>${t('noStoriesTitle')}</h2>
-        <p>${t('noStoriesBody')}</p></div>`;
-    }
-
-    // Mark all displayed headlines as seen AFTER rendering
-    const allHeadlines = [
-      ...(data.international || []),
-      ...(data.local         || []),
-    ].map(s => s.headline);
-    markHeadlinesSeen(allHeadlines);
-
-    return intl + local;
-  }
-
-  // ── Fetch ──────────────────────────────────────────────────────────
-  async function loadDigest() {
-    const main = document.getElementById('main-content');
-    const meta = document.getElementById('meta-line');
-
-    main.innerHTML = `<div class="state-box">
-      <div class="spinner"></div>
-      <h2>${t('loadingTitle')}</h2>
-      <p>${t('loadingBody')}</p>
-    </div>`;
-
-    try {
-      const res = await fetch('/api/digest');
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
-      const data = await res.json();
-      currentDigestData  = data;
-      currentGeneratedAt = data.generatedAt;
-
-      // Restore persisted translation cache for this exact digest version.
-      // If the digest has been regenerated (new generatedAt) this returns null
-      // and a fresh translation is triggered below.
-      translationCache = loadXlatCache(data.generatedAt);
-
-      updateMetaLine();
-      document.getElementById('api-link').href = '/api/digest';
-      main.innerHTML = renderDigest(data);
-
-      // If the user left in Chinese but the cache is missing (new digest version),
-      // show English first so the page isn't blank-looking, then auto-translate.
-      // We temporarily set currentLang to 'en' so setLang('zh') doesn't
-      // short-circuit on the lang === currentLang guard.
-      if (currentLang === 'zh' && !translationCache) {
-        currentLang = 'en';
-        const btnEn = document.getElementById('lang-en');
-        const btnZh = document.getElementById('lang-zh');
-        if (btnEn) btnEn.classList.add('active');
-        if (btnZh) btnZh.classList.remove('active');
-        setLang('zh'); // now proceeds cleanly, shows translating bar
-      }
-    } catch (err) {
-      meta.textContent = t('errMeta');
-      main.innerHTML = `<div class="state-box">
-        <h2>${t('errTitle')}</h2>
-        <p>${err.message}</p>
-        <p style="margin-top:0.5rem">${t('errRetry')}</p>
-      </div>`;
-    }
-  }
-
-  // ── Boot ───────────────────────────────────────────────────────────
-  // Restore language preference before first render so the UI buttons
-  // and all t() calls reflect the correct language immediately.
-  (function restoreLang() {
-    const saved = loadLang();
-    if (saved === 'zh') {
-      currentLang = 'zh';
-      const btnEn = document.getElementById('lang-en');
-      const btnZh = document.getElementById('lang-zh');
-      if (btnEn) btnEn.classList.remove('active');
-      if (btnZh) btnZh.classList.add('active');
-    }
-  })();
-
-  loadDigest();
-</script>
+<script src="/app.js"></script>
 </body>
 </html>
