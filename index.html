@@ -7,7 +7,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/apple-touch-icon.png">
   <style>
-    /* ── Reset & base ───────────────────────────────────────────────── */
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -34,7 +34,7 @@
       min-height: 100vh;
     }
 
-    /* ── Masthead ───────────────────────────────────────────────────── */
+
     .masthead {
       border-bottom: 3px double var(--ink);
       padding: 1.25rem 0 0.75rem;
@@ -70,14 +70,14 @@
       letter-spacing: 0.04em;
     }
 
-    /* ── Layout ─────────────────────────────────────────────────────── */
+
     .container {
       max-width: 780px;
       margin: 0 auto;
       padding: 0 1.25rem;
     }
 
-    /* ── Section headers ────────────────────────────────────────────── */
+
     .section-header {
       display: flex;
       align-items: baseline;
@@ -102,7 +102,7 @@
       background: var(--rule);
     }
 
-    /* ── Story cards ────────────────────────────────────────────────── */
+
     .story-card {
       border-bottom: 1px solid var(--rule);
       padding: 1.2rem 0 1.1rem;
@@ -133,7 +133,7 @@
       margin-bottom: 0.75rem;
     }
 
-    /* Source chips */
+
     .story-chips {
       display: flex;
       flex-wrap: wrap;
@@ -168,7 +168,7 @@
       pointer-events: none;
     }
 
-    /* Free source with no confirmed URL — show as plain unlinked chip (no lock) */
+
     .chip.unlinked {
       cursor: default;
       pointer-events: none;
@@ -179,7 +179,7 @@
       font-weight: 400;
     }
 
-    /* ── Publication time ───────────────────────────────────────────── */
+
     .story-time {
       display: block;
       font-family: var(--ui);
@@ -190,7 +190,7 @@
       margin-bottom: 0.5rem;
     }
 
-    /* ── Loading / error states ─────────────────────────────────────── */
+
     .state-box {
       text-align: center;
       padding: 4rem 1rem;
@@ -218,7 +218,7 @@
 
     .state-box p { font-size: 0.85rem; }
 
-    /* ── New badge ──────────────────────────────────────────────────── */
+
     .new-badge {
       font-family: var(--ui);
       font-size: 0.6rem;
@@ -235,7 +235,7 @@
       line-height: 1.6;
     }
 
-    /* ── Breaking badge ─────────────────────────────────────────────── */
+
     .breaking-badge {
       font-family: var(--ui);
       font-size: 0.6rem;
@@ -252,7 +252,7 @@
       line-height: 1.6;
     }
 
-    /* ── Learn more link ────────────────────────────────────────────── */
+
     .learn-more-link {
       font-family: var(--ui);
       font-size: 0.75rem;
@@ -264,7 +264,7 @@
 
     .learn-more-link:hover { text-decoration: underline; }
 
-    /* ── Story footer: learn-more + per-story copy icon ─────────────── */
+
     .story-footer {
       display: flex;
       align-items: center;
@@ -309,7 +309,7 @@
       50%       { opacity: 0.4; }
     }
 
-    /* ── Footer ─────────────────────────────────────────────────────── */
+
     footer {
       border-top: 1px solid var(--rule);
       margin-top: 2rem;
@@ -323,7 +323,7 @@
 
     footer a { color: inherit; }
 
-    /* ── Masthead controls row ──────────────────────────────────────── */
+
     .masthead-controls {
       display: flex;
       align-items: center;
@@ -332,24 +332,19 @@
     }
 
     .refresh-btn {
-      font-family: var(--ui);
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      color: var(--ink-mid);
       background: none;
-      border: 1px solid var(--rule);
+      border: none;
       border-radius: 3px;
-      padding: 0.28rem 0.65rem;
+      padding: 0.2rem 0.3rem;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      color: var(--ink-faint);
+      transition: color 0.12s, background 0.12s;
     }
 
-    .refresh-btn:hover    { background: var(--chip-bg); border-color: var(--ink-faint); color: var(--ink); }
-    .refresh-btn:disabled { opacity: 0.45; cursor: default; }
+    .refresh-btn:hover    { color: var(--ink); background: var(--chip-bg); }
+    .refresh-btn:disabled { opacity: 0.35; cursor: default; }
 
     .play-all-btn {
       font-family: var(--ui);
@@ -408,8 +403,19 @@
       text-align: center;
       padding: 0.4rem 0 0;
       display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
     }
-    .translating-bar.visible { display: block; }
+    .translating-bar.visible { display: flex; }
+    .translating-bar .spinner {
+      width: 12px; height: 12px;
+      border: 1.5px solid var(--rule);
+      border-top-color: var(--ink-faint);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
 
     #translating-overlay {
       display: none;
@@ -438,7 +444,7 @@
       letter-spacing: 0.05em;
     }
 
-    /* ── Responsive ─────────────────────────────────────────────────── */
+
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }
       .story-summary  { font-size: 0.9rem; }
@@ -447,21 +453,19 @@
 </head>
 <body>
 
-<!-- ── Masthead ──────────────────────────────────────────────────────── -->
 <header class="masthead">
   <div class="container">
     <p class="masthead-eyebrow">Hong Kong · Est. 2026</p>
     <h1 class="masthead-title">Daily <span>Pulse</span></h1>
     <p class="masthead-meta" id="meta-line">Loading…</p>
-    <p class="translating-bar" id="translating-bar">正在翻譯… Translating…</p>
+    <p class="translating-bar" id="translating-bar"><span class="spinner"></span>正在翻譯… Translating…</p>
     <div class="masthead-controls">
       <div style="display:inline-flex;align-items:center;gap:0.5rem;">
         <button class="refresh-btn" id="refresh-btn" onclick="handleRefresh()" title="Refresh digest" aria-label="Refresh digest">
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
             <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
           </svg>
-          Get Latest
         </button>
         <button class="play-all-btn" id="play-all-btn" onclick="playAll()">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -478,7 +482,6 @@
   </div>
 </header>
 
-<!-- ── Main content ──────────────────────────────────────────────────── -->
 <main class="container" id="main-content">
   <div class="state-box">
     <div class="spinner"></div>
@@ -488,7 +491,7 @@
 </main>
 
 <footer class="container">
-  <p>Daily Pulse aggregates public headlines from AP, BBC, The Guardian, CNBC, RTHK, HKFP &amp; The Standard.
+  <p>Daily Pulse aggregates news headlines from public news outlets.
   Sources retain all rights to their content. &nbsp;·&nbsp; <a href="/api/digest" id="api-link">View raw API</a></p>
 </footer>
 
