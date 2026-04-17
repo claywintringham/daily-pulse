@@ -593,15 +593,6 @@
               } else if (evt.type === 'done') {
                 currentGeneratedAt = evt.generatedAt;
                 _finishLoad(evt.generatedAt);
-                // Prefetch TTS only after full digest is loaded, with a short
-                // delay so the browser can settle before background requests begin.
-                setTimeout(() => {
-                  prefetchLabels();
-                  prefetchTts([
-                    ...(currentDigestData.international || []),
-                    ...(currentDigestData.local         || []),
-                  ]);
-                }, 1500);
               } else if (evt.type === 'error') {
                 if (!cleared) {
                   meta.textContent = t('errMeta');
@@ -624,14 +615,6 @@
         currentGeneratedAt = data.generatedAt;
         main.innerHTML = renderDigest(data);
         _finishLoad(data.generatedAt);
-        // Prefetch TTS after a short delay so the page renders first.
-        setTimeout(() => {
-          prefetchLabels();
-          prefetchTts([
-            ...(data.international || []),
-            ...(data.local         || []),
-          ]);
-        }, 1500);
       }
     } catch (err) {
       const hasContent = ((currentDigestData?.international?.length ?? 0) +
