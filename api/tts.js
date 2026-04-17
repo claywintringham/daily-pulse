@@ -44,7 +44,7 @@ function pcmToWav(pcm, sampleRate = 24_000, channels = 1, bitDepth = 16) {
 async function callGeminiTts(apiKey, truncated, lang = 'en') {
   const voiceName = lang === 'zh' ? 'Aoede' : 'Kore';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-              `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+              `gemini-2.5-flash-tts:generateContent?key=${apiKey}`;
 
   const upstream = await fetch(url, {
     method:  'POST',
