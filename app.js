@@ -38,7 +38,9 @@
   // Fire-and-forget: results land in ttsCache so Play All is instant.
   // Only called after the full digest has loaded to avoid competing
   // with the main digest stream.
-  function prefetchTts(stories) {
+  // Stories are fetched sequentially with a 1.5 s gap to avoid hitting
+  // Gemini's per-minute TTS rate limit when multiple stories fire at once.
+  async function prefetchTts(stories) {
     if (!stories?.length) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
     for (const story of stories) {
@@ -46,14 +48,17 @@
       if (!text.trim()) continue;
       const cacheKey = story.id + ':' + lang;
       if (ttsCache.has(cacheKey)) continue;
-      fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), lang }),
-      })
-        .then(r => r.ok ? r.arrayBuffer() : null)
-        .then(buf => { if (buf) ttsCache.set(cacheKey, buf); })
-        .catch(() => {});
+      try {
+        const r = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.trim(), lang }),
+        });
+        const buf = r.ok ? await r.arrayBuffer() : null;
+        if (buf) ttsCache.set(cacheKey, buf);
+      } catch {}
+      // Pause between stories to stay under Gemini's per-minute quota.
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
   }
 
