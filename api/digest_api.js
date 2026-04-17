@@ -322,10 +322,13 @@ async function enrichWithArticleContent(clusters, concurrency = 6) {
 
       // Use pre-fetched description if available (e.g. TVB Pearl/TVB API items)
       // Avoids an outbound HTTP fetch when the adapter already returned article text.
+      // Must pass a minimum word count AND excerptIsRelevant to filter out nav/ad
+      // text that can appear in raw RSS description fields.
       const memberWithDesc = (c.members ?? []).find(m => m.description);
       if (memberWithDesc) {
         const sanitised = sanitiseExtract(memberWithDesc.description).slice(0, 1500);
-        if (sanitised.length > 80) {
+        const wordCount = sanitised.split(/\s+/).filter(Boolean).length;
+        if (sanitised.length > 80 && wordCount >= 30 && excerptIsRelevant(c.headline, sanitised)) {
           c.articleExcerpt = sanitised;
           return; // skip URL fetching
         }
