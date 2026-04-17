@@ -685,72 +685,18 @@
   }
 
   async function announceLabelAsync(label) {
+    // Section headings always use the browser voice — no Gemini quota consumed,
+    // so both Gemini slots per minute are reserved for actual story content.
     if (!playAllActive) return;
-    const lang      = currentLang === 'zh' ? 'zh' : 'en';
-    const cacheKey  = 'lbl:' + label + ':' + lang;
-
-    let ctx = null;
-    if (!IS_IOS) {
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        ctx = audioCtx;
-        if (ctx.state === 'suspended') await ctx.resume();
-      } catch { ctx = null; }
-    }
-
-    try {
-      let arrayBuffer = ttsCache.get(cacheKey);
-      if (!arrayBuffer) {
-        const res = await fetch('/api/tts', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ text: label, lang }),
-        });
-        if (!res.ok) throw new Error(`TTS ${res.status}`);
-        arrayBuffer = await res.arrayBuffer();
-        ttsCache.set(cacheKey, arrayBuffer);
-      }
-      if (!playAllActive) return;
-      await new Promise(resolve => {
-        const cleanup = () => { currentSource = null; resolve(); };
-        if (ctx) {
-          ctx.decodeAudioData(arrayBuffer.slice(0))
-            .then(audioBuffer => {
-              if (!playAllActive) { resolve(); return; }
-              const source = ctx.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(ctx.destination);
-              source.onended = cleanup;
-              source.start(0);
-              currentSource = source;
-            })
-            .catch(() => {
-              const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
-              const burl = URL.createObjectURL(blob);
-              const a = new Audio(burl);
-              a.onended = a.onerror = () => { URL.revokeObjectURL(burl); resolve(); };
-              a.play().catch(resolve);
-            });
-        } else {
-          const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
-          const burl = URL.createObjectURL(blob);
-          const a = new Audio(burl);
-          a.onended = a.onerror = () => { URL.revokeObjectURL(burl); resolve(); };
-          a.play().catch(resolve);
-        }
-      });
-    } catch (err) {
-      console.warn('[tts] label TTS failed, falling back to Web Speech:', err.message);
-      if (window.speechSynthesis && playAllActive) {
-        await new Promise(resolve => {
-          const utt = new SpeechSynthesisUtterance(label);
-          utt.lang  = lang === 'zh' ? 'zh-CN' : 'en-US';
-          utt.rate  = 1.0;
-          utt.onend = utt.onerror = resolve;
-          window.speechSynthesis.speak(utt);
-        });
-      }
-    }
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    if (!window.speechSynthesis) return;
+    await new Promise(resolve => {
+      const utt = new SpeechSynthesisUtterance(label);
+      utt.lang  = lang === 'zh' ? 'zh-CN' : 'en-US';
+      utt.rate  = 1.0;
+      utt.onend = utt.onerror = resolve;
+      window.speechSynthesis.speak(utt);
+    });
   }
 
   function stopPlayAll() {
