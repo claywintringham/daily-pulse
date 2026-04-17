@@ -1,6 +1,5 @@
-// ── api/digest.js ──────────────────────────────────────────────────────────
-// Runs two parallel pipelines (international + local), each with its own
-// source set, cluster, editorial-filter, enrichment, and summarisation steps.
+// ── api/digest.js ─────────────────────────────────────────────────────────────
+// Function 2 of the two-function pipeline.
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
 import { enrichWithArticleContent, rankLearnMoreUrls, pickLearnMoreUrl } from '../lib/enricher.js';
 import { editorialFilter, summarizeClusters, translateHeadlines, clusterHeadlines } from '../lib/llm.js';
@@ -12,7 +11,7 @@ import { getById }        from '../lib/sourceRegistry.js';
 
 export const config = { maxDuration: 120 };
 
-const DIGEST_TTL      = 25 * 60; // 25 min — cron runs every 20 min, 5 min buffer
+const DIGEST_TTL      = 20 * 60;
 const SCRAPED_TTL     = 20 * 60;
 const STORY_COUNTS    = { intl: 3, local: 2 };
 const STALE_WINDOW_MS = 36 * 60 * 60 * 1000;
@@ -40,6 +39,7 @@ function computeIsBreaking(members) {
 function headlineTokens(h) {
   return new Set(h.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2));
 }
+
 function headlineOverlap(h1, h2) {
   const a = headlineTokens(h1), b = headlineTokens(h2);
   if (!a.size || !b.size) return 0;
@@ -47,6 +47,7 @@ function headlineOverlap(h1, h2) {
   for (const t of a) if (b.has(t)) inter++;
   return inter / (a.size + b.size - inter);
 }
+
 function deduplicateByHeadline(clusters, threshold = 0.5) {
   const kept = [];
   for (const c of clusters) {
@@ -57,11 +58,9 @@ function deduplicateByHeadline(clusters, threshold = 0.5) {
   return kept;
 }
 
-// ── Per-bucket inline scrape ──────────────────────────────────────────────
-async function runInlineScrape(bucket) {
-  console.log(`[digest] Running inline scrape for bucket: ${bucket}`);
-  const adapterResults = await runAllAdapters(bucket);
-
+async function runInlineScrape() {
+  console.log('[digest] Running inline scrape (no pre-warmed data)');
+  const adapterResults = await runAllAdapters();
   const enriched = await Promise.all(
     adapterResults.map(async src => {
       const def = getById(src.sourceId);
@@ -74,23 +73,21 @@ async function runInlineScrape(bucket) {
       return { ...src, items: await translateHeadlines(src.items) };
     })
   );
-
-  const clusters = await buildClusters(enrichedFinal, clusterHeadlines);
-  const scored   = scoreClusters(clusters, bucket);
-
+  const clusters   = await buildClusters(enrichedFinal, clusterHeadlines);
   const payload = {
-    scrapedAt:   new Date().toISOString(),
-    clusters:    scored,
-    adapterMeta: adapterResults.map(r => ({
+    scrapedAt:     new Date().toISOString(),
+    international: scoreClusters(clusters, 'international'),
+    local:         scoreClusters(clusters, 'local'),
+    adapterMeta:   adapterResults.map(r => ({
       sourceId: r.sourceId, scrapeConfidence: r.scrapeConfidence,
       itemCount: (r.items ?? []).length, warnings: r.warnings ?? [],
+      sampleTitles: (r.items ?? []).slice(0, 3).map(i => i.title),
     })),
   };
-  await redisSet(`scraped:${bucket}`, payload, SCRAPED_TTL).catch(() => {});
+  await redisSet('scraped:rolling', payload, SCRAPED_TTL).catch(() => {});
   return payload;
 }
 
-// ── formatStories ───────────────────────────────────────────────────────────
 function formatStories(clusters) {
   return clusters.map(c => {
     const dates = c.members.map(m => m.publishedAt)
@@ -114,7 +111,8 @@ function formatStories(clusters) {
   });
 }
 
-// ── Handler ─────────────────────────────────────────────────────────────
+// ── Handler ───────────────────────────────────────────────────────────────────
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
@@ -122,13 +120,10 @@ export default async function handler(req, res) {
 
   const reqUrl = new URL(req.url, `https://${req.headers.host}`);
   if (reqUrl.searchParams.get('reset') === 'true') {
-    await redisDel('digest:rolling').catch(() => {});
-    if (reqUrl.searchParams.get('full') === 'true') {
-      await Promise.all([
-        redisDel('scraped:international').catch(() => {}),
-        redisDel('scraped:local').catch(() => {}),
-      ]);
-    }
+    await Promise.all([
+      redisDel('digest:rolling').catch(() => {}),
+      redisDel('scraped:rolling').catch(() => {}),
+    ]);
     return res.status(200).json({ ok: true, message: 'Cache cleared. Next request will regenerate the digest.' });
   }
 
@@ -136,7 +131,6 @@ export default async function handler(req, res) {
   console.log('[digest] Request for rolling digest');
 
   try {
-    // ── Digest cache ────────────────────────────────────────────────────
     const cached = await redisGet('digest:rolling');
     if (cached?.generatedAt) {
       const age = (Date.now() - new Date(cached.generatedAt).getTime()) / 1000;
@@ -156,96 +150,112 @@ export default async function handler(req, res) {
     }
     const sse = (obj) => { try { if (!wantsJson) res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {} };
 
-    // ── Get scrape data (check both caches in parallel, scrape if cold) ────
-    const [cachedIntl, cachedLocal] = await Promise.all([
-      redisGet('scraped:international'),
-      redisGet('scraped:local'),
-    ]);
-    const intlScraped  = cachedIntl  || await runInlineScrape('international');
-    const localScraped = cachedLocal || await runInlineScrape('local');
+    let scraped = await redisGet('scraped:rolling');
+    if (!scraped) scraped = await runInlineScrape();
 
-    // ── 90s guard ─────────────────────────────────────────────────────────
-    if (Date.now() - t0 > 90_000) {
-      sse({ type: 'error', message: 'Digest is regenerating — please try again in a moment.' });
-      return res.end();
-    }
+    const allClusters = [...(scraped.international ?? []), ...(scraped.local ?? [])];
+    console.log(`[digest] ${allClusters.length} cluster(s) before editorial filter`);
 
-    const intlClusters  = intlScraped.clusters  ?? [];
-    const localClusters = localScraped.clusters ?? [];
-    console.log(`[digest] ${intlClusters.length} intl clusters, ${localClusters.length} local clusters`);
+    // Small delay lets Gemini recover from rate limits after clustering call.
+    await new Promise(r => setTimeout(r, 1500));
+    const editFiltered = await editorialFilter(allClusters);
 
-    // ── Editorial filter — both buckets in parallel (independent calls) ────
-    const [editFilteredIntl, editFilteredLocal] = await Promise.all([
-      editorialFilter(intlClusters,  'international'),
-      editorialFilter(localClusters, 'local'),
-    ]);
-    console.log(`[digest] After editorial filter: ${editFilteredIntl.length} intl, ${editFilteredLocal.length} local`);
-
-    // ── Staleness filter (≤36 h) ────────────────────────────────────────────────
     const nowMs = Date.now();
-    const isStale = c => {
+    const filtered = editFiltered.filter(c => {
       const dated = (c.members ?? []).filter(m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime()));
-      if (!dated.length) return false;
-      return (nowMs - Math.max(...dated.map(m => new Date(m.publishedAt).getTime()))) > STALE_WINDOW_MS;
-    };
-    let filteredIntl  = editFilteredIntl.filter(c  => !isStale(c));
-    let filteredLocal = editFilteredLocal.filter(c => !isStale(c));
+      if (!dated.length) return true;
+      return (nowMs - Math.max(...dated.map(m => new Date(m.publishedAt).getTime()))) <= STALE_WINDOW_MS;
+    });
+    console.log(`[digest] ${filtered.length} cluster(s) after editorial + staleness filter`);
 
-    if (filteredIntl.length === 0 && intlClusters.length > 0) {
-      console.warn('[digest] filteredIntl empty — using raw scraped clusters');
-      filteredIntl = intlClusters.filter(c => !isStale(c));
+    let filteredIntl  = filtered.filter(c => c.bucket === 'international');
+    let filteredLocal = filtered.filter(c => c.bucket === 'local');
+
+    const staleFilter = arr => arr.filter(c => {
+      const dated = (c.members ?? []).filter(m => m.publishedAt && !isNaN(new Date(m.publishedAt).getTime()));
+      return !dated.length || (nowMs - Math.max(...dated.map(m => new Date(m.publishedAt).getTime()))) <= STALE_WINDOW_MS;
+    });
+
+    if (filteredIntl.length === 0 && (scraped.international ?? []).length > 0) {
+      console.warn('[digest] filteredIntl empty — using raw scraped international');
+      filteredIntl = staleFilter(scraped.international);
     }
-    if (filteredLocal.length === 0 && localClusters.length > 0) {
-      console.warn('[digest] filteredLocal empty — using raw scraped clusters');
-      filteredLocal = localClusters.filter(c => !isStale(c));
+    if (filteredLocal.length === 0 && (scraped.local ?? []).length > 0) {
+      console.warn('[digest] filteredLocal empty — using raw scraped local');
+      filteredLocal = staleFilter(scraped.local);
     }
 
-    // ── Take top candidates (3× display count for headroom) ─────────────────
-    const intlCandidates  = filteredIntl.slice(0,  STORY_COUNTS.intl  * 3);
-    const localCandidates = filteredLocal.slice(0, STORY_COUNTS.local * 3);
-
-    // ── Article enrichment (both sections in parallel, Firecrawl enabled) ───
-    const needsEnrich = [...intlCandidates, ...localCandidates].filter(c => !c.articleExcerpts?.length);
-    if (needsEnrich.length > 0) {
-      console.log(`[digest] Enriching articles for ${needsEnrich.length} clusters…`);
-      await Promise.all([
-        enrichWithArticleContent(intlCandidates,  { useFirecrawl: true }),
-        enrichWithArticleContent(localCandidates, { useFirecrawl: true }),
-      ]);
+    const toEnrich = [...new Map([...filteredIntl, ...filteredLocal].map(c => [c.id, c])).values()];
+    const needsEnrichment = toEnrich.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    if (needsEnrichment > 0) {
+      console.log(`[digest] Enriching ${needsEnrichment} clusters…`);
+      await enrichWithArticleContent(toEnrich, { useFirecrawl: true });
     } else {
       console.log('[digest] All clusters pre-enriched — skipping fetch');
     }
 
-    // Skip stories with no real article content — avoids summaries based on
-    // titles alone or fallback content from unrelated sources.
-    const intlToSummarise  = intlCandidates.filter(c => c.articleExcerpts?.length >= 1);
-    const localToSummarise = localCandidates.filter(c => c.articleExcerpts?.length >= 1);
-    if (intlCandidates.length !== intlToSummarise.length || localCandidates.length !== localToSummarise.length) {
-      console.log(`[digest] Skipping stories with no content: ${intlCandidates.length - intlToSummarise.length} intl, ${localCandidates.length - localToSummarise.length} local`);
+    // Drop clusters that failed to acquire a substantive excerpt. We do NOT
+    // fall back to a placeholder string or to the headline alone — per product
+    // spec, those clusters are dropped entirely from the digest.
+    const droppedIntl  = filteredIntl.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    const droppedLocal = filteredLocal.filter(c => !(Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) && !c.articleExcerpt).length;
+    filteredIntl  = filteredIntl.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
+    filteredLocal = filteredLocal.filter(c => (Array.isArray(c.articleExcerpts) && c.articleExcerpts.length) || c.articleExcerpt);
+    const droppedTotal = droppedIntl + droppedLocal;
+    if (droppedTotal > 0) {
+      console.log(`[digest] Dropped ${droppedTotal} cluster(s) with no substantive content (${droppedIntl} intl, ${droppedLocal} local)`);
     }
 
-    // ── Summarise sequentially — intl first, SSEs immediately, then local ───
-    // Sequential prevents Gemini rate-limit collisions. Each section SSEs as
-    // soon as it's ready so international stories appear before local.
-    const intlSummarized = await summarizeClusters(intlToSummarise);
-    const finalIntl = deduplicateByHeadline(intlSummarized).slice(0, STORY_COUNTS.intl);
+    const HEADLINE_SKIP = [
+      /\?$/, /^(analysis|opinion|comment|explainer|review|interview)[:\s]/i,
+      /^live:/i, /\blive:/i,
+      /^(morning|evening|daily|weekly)\s+(recap|digest|briefing|roundup|update|summary)/i,
+      /^recap\b/i, /^(your|the)\s+(daily|morning|evening)\s+(news|digest|briefing|summary)/i,
+      /^the latest news from\b/i,
+    ];
+    const NON_HK_LOCAL = [
+      /\b(Premier League|FA Cup|Champions League|UEFA|Europa League|La Liga|Serie A|Bundesliga|Ligue 1)\b/i,
+      /\b(NFL|NBA|MLB|NHL|MLS|ATP|WTA|Grand Slam|Wimbledon|Roland Garros|US Open|Australian Open)\b/i,
+      /\b(Man\s*United|Man\s*City|Arsenal|Chelsea|Liverpool|Tottenham|Leicester|Everton|Aston\s*Villa)\b/i,
+      /\bFox Business\b/i, /\b(Wall Street|Main Street)\b.*\bon\s+\w/i,
+    ];
+    const noQ      = arr => arr.filter(c => !HEADLINE_SKIP.some(p => p.test(c.headline.trim())));
+    const noQLocal = arr => arr.filter(c => {
+      const h = c.headline.trim();
+      return !HEADLINE_SKIP.some(p => p.test(h)) && !NON_HK_LOCAL.some(p => p.test(h));
+    });
+
+    const byScore = arr => [...arr].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
+
+    // Filter out any clusters where summarization failed. summarizeClusters no
+    // longer produces a placeholder fallback; summary may be undefined.
+    const withSummary = arr => arr.filter(c => c.summary && c.summary.trim().length > 0);
+
+    // Small delay before summarisation helps Gemini recover from rate limits.
+    await new Promise(r => setTimeout(r, 1500));
+    const intlResults    = await summarizeClusters(filteredIntl);
+    const summarisedIntl = byScore(withSummary(deduplicateByHeadline(noQ(intlResults))));
+    const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
     sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
-    const localSummarized = await summarizeClusters(localToSummarise);
-    const finalLocal = deduplicateByHeadline(localSummarized).slice(0, STORY_COUNTS.local);
+    // Another pause between summarisation calls to stay under per-minute quotas.
+    await new Promise(r => setTimeout(r, 1500));
+    const localResults    = await summarizeClusters(filteredLocal);
+    const summarisedLocal = byScore(withSummary(deduplicateByHeadline(noQLocal(localResults))));
+    const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
     sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
-
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
 
     const meta = {
-      adapterMeta:       [...(intlScraped.adapterMeta ?? []), ...(localScraped.adapterMeta ?? [])],
-      intlClusterCount:  intlClusters.length,
-      localClusterCount: localClusters.length,
-      elapsedMs:         Date.now() - t0,
+      adapterMeta:        scraped.adapterMeta ?? [],
+      clusterCountBefore: allClusters.length,
+      clusterCountAfter:  filtered.length,
+      droppedNoContent:   droppedTotal,
+      elapsedMs:          Date.now() - t0,
     };
     const response = {
       generatedAt:   new Date().toISOString(),
-      scrapedAt:     intlScraped.scrapedAt,
+      scrapedAt:     scraped.scrapedAt,
       international: formatStories(finalIntl),
       local:         formatStories(finalLocal),
       meta,
