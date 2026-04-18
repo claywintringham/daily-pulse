@@ -685,12 +685,12 @@
   }
 
   async function announceLabelAsync(label) {
-    // Chinese headings → Gemini TTS (WAV) via heading:true flag.
-    // English headings → Speechify (MP3). Stories always use Speechify.
+    // Chinese headings + stories → Qwen TTS (Cherry, MP3).
+    // English headings + stories → Speechify (Carly, MP3).
     if (!playAllActive) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
-    // Gemini returns WAV for Chinese headings; Speechify returns MP3 for English.
-    const mimeType = lang === 'zh' ? 'audio/wav' : 'audio/mpeg';
+    // Qwen TTS returns MP3 for Chinese; Speechify returns MP3 for English.
+    const mimeType = 'audio/mpeg';
 
     try {
       const cacheKey = 'label:' + label + ':' + lang;
