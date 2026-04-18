@@ -1,4 +1,3 @@
-
   let currentDigestData  = null;
   let currentLang        = 'en';
   let translationCache   = null;
@@ -436,7 +435,7 @@
           console.warn('[tts] Web Audio failed, trying HTML Audio:', webAudioErr.message);
         }
       }
-      const blob  = new Blob([arrayBuffer], { type: 'audio/wav' });
+      const blob  = new Blob([arrayBuffer], { type: 'audio/mpeg' });
       const url   = URL.createObjectURL(blob);
       const audio = new Audio(url);
       currentAudio = audio;
@@ -651,7 +650,7 @@
               currentSource = source;
             })
             .catch(() => {
-              const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+              const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/mpeg' });
               const burl = URL.createObjectURL(blob);
               const a = new Audio(burl);
               currentAudio = a;
@@ -659,7 +658,7 @@
               a.play().catch(cleanup);
             });
         } else {
-          const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/wav' });
+          const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/mpeg' });
           const burl = URL.createObjectURL(blob);
           const a = new Audio(burl);
           currentAudio = a;
@@ -685,8 +684,7 @@
   }
 
   async function announceLabelAsync(label) {
-    // Section headings always use the browser voice — no Gemini quota consumed,
-    // so both Gemini slots per minute are reserved for actual story content.
+    // Section headings use browser voice — no API quota consumed.
     if (!playAllActive) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
     if (!window.speechSynthesis) return;
