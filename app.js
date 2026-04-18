@@ -308,6 +308,7 @@
     if (currentDigestData) {
       document.getElementById('main-content').innerHTML = renderDigest(currentDigestData);
     }
+    prefetchTts(); // warm the cache for the newly active language
   }
 
   async function handleRefresh() {
@@ -375,11 +376,14 @@
   }
 
   // ── Background TTS prefetch ───────────────────────────────────────────────
-  // Called after the digest finishes loading. Silently fires /api/tts for every
-  // story and section label so audio is in ttsCache before the user clicks Speak.
+  // Called after the digest finishes loading, and again after a language switch.
+  // Silently fires /api/tts for every story and section label in the active
+  // language so audio is in ttsCache before the user clicks Speak.
   // Requests are staggered 150 ms apart to avoid hitting all at once; each runs
   // concurrently (setTimeout is non-blocking), so wall-clock time is roughly
   // equal to the longest TTS response time plus the stagger offset.
+  // Already-cached keys are skipped, so calling this again on language switch
+  // is a no-op for anything already fetched.
   function prefetchTts() {
     if (!currentDigestData) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
