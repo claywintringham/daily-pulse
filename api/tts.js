@@ -5,7 +5,7 @@
 // Caches responses in Redis (6-hour TTL) — repeat plays are instant.
 // Stores base64 MP3 directly — no PCM conversion needed.
 //
-// Voice: "henry" (natural news-reading tone).
+// Voice: "carly" (natural news-reading tone).
 // Chinese: same voice via simba-multilingual model with language: zh-CN.
 
 import { get as redisGet, set as redisSet } from '../lib/redis.js';
@@ -25,7 +25,7 @@ async function callSpeechifyTts(apiKey, text, lang = 'en') {
   const model = isZh ? 'simba-multilingual' : 'simba-english';
   const body  = {
     input:        text,
-    voice_id:     'henry',
+    voice_id:     'carly',
     model,
     audio_format: 'mp3',
     ...(isZh && { language: 'zh-CN' }),
