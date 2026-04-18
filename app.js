@@ -15,8 +15,8 @@
   const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // Prefetch is disabled — it was consuming the Gemini TTS quota
-  // (15 req/min) before users could play anything. On-demand only.
+  // Background TTS prefetch is enabled — Speechify + Qwen have generous rate
+  // limits, unlike the old Gemini TTS (15 req/min) that forced on-demand only.
 
   const UI = {
     en: {
@@ -374,6 +374,50 @@
     });
   }
 
+  // ── Background TTS prefetch ───────────────────────────────────────────────
+  // Called after the digest finishes loading. Silently fires /api/tts for every
+  // story and section label so audio is in ttsCache before the user clicks Speak.
+  // Requests are staggered 150 ms apart to avoid hitting all at once; each runs
+  // concurrently (setTimeout is non-blocking), so wall-clock time is roughly
+  // equal to the longest TTS response time plus the stagger offset.
+  function prefetchTts() {
+    if (!currentDigestData) return;
+    const lang = currentLang === 'zh' ? 'zh' : 'en';
+    const items = [];
+
+    // Section labels
+    for (const [stories, label] of [
+      [currentDigestData.international, t('international')],
+      [currentDigestData.local,         t('hongKong')],
+    ]) {
+      if (!stories?.length) continue;
+      const key = 'label:' + label + ':' + lang;
+      if (!ttsCache.has(key)) items.push({ key, body: { text: label, lang, heading: true } });
+    }
+
+    // Stories
+    for (const c of [...(currentDigestData.international || []), ...(currentDigestData.local || [])]) {
+      const { headline, summary } = getDisplayText(c);
+      const text = (headline ? headline + '. ' : '') + (summary || '');
+      if (!text.trim()) continue;
+      const key = c.id + ':' + lang;
+      if (!ttsCache.has(key)) items.push({ key, body: { text, lang } });
+    }
+
+    items.forEach((item, i) => {
+      setTimeout(async () => {
+        try {
+          const res = await fetch('/api/tts', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(item.body),
+          });
+          if (res.ok) ttsCache.set(item.key, await res.arrayBuffer());
+        } catch { /* background — silently ignore */ }
+      }, i * 150);
+    });
+  }
+
   async function speakStory(btn) {
     const id         = btn.dataset.id;
     const text       = btn.dataset.text;
@@ -588,6 +632,7 @@
               } else if (evt.type === 'done') {
                 currentGeneratedAt = evt.generatedAt;
                 _finishLoad(evt.generatedAt);
+                prefetchTts();
               } else if (evt.type === 'error') {
                 if (!cleared) {
                   meta.textContent = t('errMeta');
@@ -610,6 +655,7 @@
         currentGeneratedAt = data.generatedAt;
         main.innerHTML = renderDigest(data);
         _finishLoad(data.generatedAt);
+        prefetchTts();
       }
     } catch (err) {
       const hasContent = ((currentDigestData?.international?.length ?? 0) +
@@ -716,8 +762,8 @@
   }
 
   async function announceLabelAsync(label) {
-    // Chinese headings + stories → Qwen TTS (Cherry, MP3).
-    // English headings + stories → Speechify (Carly, MP3).
+    // Chinese headings → Gemini TTS (WAV) via heading:true flag.
+    // English headings → Speechify (MP3). Stories always use Speechify.
     if (!playAllActive) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
     // Qwen TTS returns MP3 for Chinese; Speechify returns MP3 for English.
