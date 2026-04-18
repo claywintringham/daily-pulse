@@ -444,6 +444,26 @@
       letter-spacing: 0.05em;
     }
 
+    /* Inline fetching spinner — shown while Firecrawl search resolves */
+    .summary-fetching {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: var(--ui);
+      font-size: 0.8rem;
+      color: var(--ink-faint);
+      font-style: italic;
+    }
+
+    .summary-fetching .summary-spinner {
+      width: 11px;
+      height: 11px;
+      border: 1.5px solid var(--rule);
+      border-top-color: var(--ink-faint);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
 
     @media (max-width: 520px) {
       .story-headline { font-size: 1.1rem; }

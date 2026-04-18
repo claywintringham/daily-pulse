@@ -187,6 +187,12 @@
       ? `<a class="learn-more-link" href="${c.learnMoreUrl}" target="_blank" rel="noopener">${t('learnMore')}</a>`
       : '';
 
+    // Show a spinner while Firecrawl is fetching a better summary.
+    const isFetching   = c.summaryStatus === 'fetching';
+    const summaryHtml  = isFetching
+      ? `<span class="summary-fetching"><span class="summary-spinner"></span>Fetching summary…</span>`
+      : (displaySummary || '');
+
     const copyBtn = `<button class="story-copy-btn"
       data-headline="${escAttr(displayHeadline)}"
       data-summary="${escAttr(displaySummary || '')}"
@@ -217,10 +223,10 @@
       : '';
 
     return `
-      <article class="story-card">
+      <article class="story-card" data-story-id="${escAttr(c.id)}">
         <h2 class="story-headline">${headlineHtml}</h2>
         ${timeHtml}
-        <p class="story-summary">${displaySummary || ''}</p>
+        <p class="story-summary">${summaryHtml}</p>
         <div class="story-chips">${renderChips(c.sources)}</div>
         ${footer}
       </article>`;
@@ -553,6 +559,31 @@
                     ...(currentDigestData.international || []),
                     ...(currentDigestData.local         || []),
                   ].map(s => s.headline));
+                }
+              } else if (evt.type === 'story_update') {
+                // Firecrawl search resolved — swap the spinner for the real summary in-place.
+                const { storyId, summary } = evt;
+                for (const section of ['international', 'local']) {
+                  const story = (currentDigestData[section] || []).find(s => s.id === storyId);
+                  if (story) {
+                    story.summary       = summary;
+                    story.summaryStatus = 'ready';
+                    // Update the DOM directly — no full re-render needed.
+                    const card = document.querySelector(`.story-card[data-story-id="${CSS.escape(storyId)}"]`);
+                    if (card) {
+                      const summaryEl = card.querySelector('.story-summary');
+                      if (summaryEl) summaryEl.textContent = summary;
+                      // Refresh the copy and speak button data attributes.
+                      const copyBtn  = card.querySelector('.story-copy-btn');
+                      if (copyBtn)  copyBtn.dataset.summary = summary;
+                      const speakBtn = card.querySelector('.story-speak-btn');
+                      if (speakBtn) {
+                        const headline = story.headline || '';
+                        speakBtn.dataset.text = (headline ? headline + '. ' : '') + summary;
+                      }
+                    }
+                    break;
+                  }
                 }
               } else if (evt.type === 'done') {
                 currentGeneratedAt = evt.generatedAt;

@@ -1,7 +1,7 @@
 // ── api/digest.js ─────────────────────────────────────────────────────────────
 // Function 2 of the two-function pipeline.
 import { get as redisGet, set as redisSet, del as redisDel } from '../lib/redis.js';
-import { enrichWithArticleContent, rankLearnMoreUrls, pickLearnMoreUrl } from '../lib/enricher.js';
+import { enrichWithArticleContent, rankLearnMoreUrls, pickLearnMoreUrl, searchFirecrawlForContent } from '../lib/enricher.js';
 import { editorialFilter, summarizeClusters, translateHeadlines, clusterHeadlines } from '../lib/llm.js';
 import { buildSourceChips, pickStoryUrl, scoreClusters } from '../lib/scorer.js';
 import { runAllAdapters } from '../lib/adapters/index.js';
@@ -15,6 +15,10 @@ const DIGEST_TTL      = 20 * 60;
 const SCRAPED_TTL     = 20 * 60;
 const STORY_COUNTS    = { intl: 3, local: 2 };
 const STALE_WINDOW_MS = 36 * 60 * 60 * 1000;
+// Summaries shorter than this trigger a Firecrawl web-search fallback.
+const SHORT_SUMMARY_WORDS = 35;
+
+const wcWords = t => (t ? t.trim().split(/\s+/).length : 0);
 
 function decodeEntities(text) {
   if (!text) return text;
@@ -93,14 +97,15 @@ function formatStories(clusters) {
     const dates = c.members.map(m => m.publishedAt)
       .filter(d => d && !isNaN(new Date(d).getTime())).map(d => new Date(d).getTime());
     return {
-      id:           c.id,
-      headline:     decodeEntities(c.headline),
-      summary:      c.summary,
-      readUrl:      pickStoryUrl(c),
-      learnMoreUrl: c._learnMoreUrl ?? pickLearnMoreUrl(c),
-      isBreaking:   computeIsBreaking(c.members),
-      publishedAt:  dates.length ? new Date(Math.min(...dates)).toISOString() : null,
-      sources:      buildSourceChips(c),
+      id:            c.id,
+      headline:      decodeEntities(c.headline),
+      summary:       c.summary,
+      summaryStatus: c._summaryStatus ?? 'ready',
+      readUrl:       pickStoryUrl(c),
+      learnMoreUrl:  c._learnMoreUrl ?? pickLearnMoreUrl(c),
+      isBreaking:    computeIsBreaking(c.members),
+      publishedAt:   dates.length ? new Date(Math.min(...dates)).toISOString() : null,
+      sources:       buildSourceChips(c),
       _meta: {
         qualificationRank: c.qualificationRank,
         baseScore:         c.baseScore,
@@ -236,14 +241,54 @@ export default async function handler(req, res) {
     const intlResults    = await summarizeClusters(filteredIntl);
     const summarisedIntl = byScore(withSummary(deduplicateByHeadline(noQ(intlResults))));
     const finalIntl      = summarisedIntl.slice(0, STORY_COUNTS.intl);
-    sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
 
     // Another pause between summarisation calls to stay under per-minute quotas.
     await new Promise(r => setTimeout(r, 1500));
     const localResults    = await summarizeClusters(filteredLocal);
     const summarisedLocal = byScore(withSummary(deduplicateByHeadline(noQLocal(localResults))));
     const finalLocal      = summarisedLocal.slice(0, STORY_COUNTS.local);
-    sse({ type: 'section', section: 'local', stories: formatStories(finalLocal) });
+
+    // Mark any story with a short summary as 'fetching' — Firecrawl will
+    // search the web for better content and emit a story_update SSE event.
+    const needsSearch = [...finalIntl, ...finalLocal].filter(
+      c => wcWords(c.summary) < SHORT_SUMMARY_WORDS
+    );
+    for (const c of needsSearch) c._summaryStatus = 'fetching';
+    if (needsSearch.length > 0) {
+      console.log(`[digest] ${needsSearch.length} story/stories flagged for Firecrawl search fallback`);
+    }
+
+    // Stream both sections immediately so the reader sees content without
+    // waiting for Firecrawl searches to complete.
+    sse({ type: 'section', section: 'international', stories: formatStories(finalIntl) });
+    sse({ type: 'section', section: 'local',          stories: formatStories(finalLocal) });
+
+    // Firecrawl web-search fallback — runs in parallel across all short stories.
+    // Each resolved result emits a story_update event the client handles in-place.
+    if (needsSearch.length > 0) {
+      await Promise.all(needsSearch.map(async c => {
+        try {
+          const content = await searchFirecrawlForContent(c.headline);
+          c._summaryStatus = 'ready';
+          if (!content) return;
+          // Re-summarise using the new web content.
+          const [updated] = await summarizeClusters([{
+            ...c,
+            articleExcerpts: [content],
+            summary: undefined,
+            _summaryStatus: undefined,
+          }]);
+          if (!updated?.summary || wcWords(updated.summary) < 20) return;
+          c.summary = updated.summary;
+          sse({ type: 'story_update', storyId: c.id, summary: updated.summary });
+          console.log(`[digest] Firecrawl fallback resolved for "${(c.headline || '').slice(0, 60)}"`);
+        } catch (e) {
+          c._summaryStatus = 'ready';
+          console.warn(`[digest] Firecrawl fallback failed for "${(c.headline || '').slice(0, 60)}": ${e.message}`);
+        }
+      }));
+    }
+
     console.log(`[digest] Done ${Date.now() - t0}ms — ${finalIntl.length} intl, ${finalLocal.length} local`);
 
     const meta = {
@@ -253,6 +298,7 @@ export default async function handler(req, res) {
       droppedNoContent:   droppedTotal,
       elapsedMs:          Date.now() - t0,
     };
+    // Build response with final summaries (post-Firecrawl) for caching.
     const response = {
       generatedAt:   new Date().toISOString(),
       scrapedAt:     scraped.scrapedAt,
