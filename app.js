@@ -14,9 +14,6 @@
   const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // Prefetch is disabled — it was consuming the Gemini TTS quota
-  // (15 req/min) before users could play anything. On-demand only.
-
   const UI = {
     en: {
       updated:       'Updated',
@@ -393,7 +390,6 @@
       const cacheKey = id + ':' + lang;
       let arrayBuffer = ttsCache.get(cacheKey);
       if (!arrayBuffer) {
-        // Try up to 2 times — first attempt, then one retry after 8 s if rate-limited.
         let res;
         for (let attempt = 0; attempt < 2; attempt++) {
           res = await fetch('/api/tts', {
@@ -668,7 +664,6 @@
       });
     } catch (err) {
       console.warn('[play-all] TTS error, falling back to Web Speech:', err.message);
-      // Fall back to Web Speech API so Play All keeps working during TTS outages
       if (window.speechSynthesis && playAllActive) {
         await new Promise(resolve => {
           const utt = new SpeechSynthesisUtterance(text);
@@ -684,17 +679,44 @@
   }
 
   async function announceLabelAsync(label) {
-    // Section headings use browser voice — no API quota consumed.
+    // Section headings use Speechify — consistent voice throughout Play All.
     if (!playAllActive) return;
     const lang = currentLang === 'zh' ? 'zh' : 'en';
-    if (!window.speechSynthesis) return;
-    await new Promise(resolve => {
-      const utt = new SpeechSynthesisUtterance(label);
-      utt.lang  = lang === 'zh' ? 'zh-CN' : 'en-US';
-      utt.rate  = 1.0;
-      utt.onend = utt.onerror = resolve;
-      window.speechSynthesis.speak(utt);
-    });
+
+    try {
+      const cacheKey = 'label:' + label + ':' + lang;
+      let arrayBuffer = ttsCache.get(cacheKey);
+      if (!arrayBuffer) {
+        const res = await fetch('/api/tts', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ text: label, lang }),
+        });
+        if (!res.ok) throw new Error(`TTS ${res.status}`);
+        if (!playAllActive) return;
+        arrayBuffer = await res.arrayBuffer();
+        ttsCache.set(cacheKey, arrayBuffer);
+      }
+      if (!playAllActive) return;
+      await new Promise(resolve => {
+        const blob = new Blob([arrayBuffer.slice(0)], { type: 'audio/mpeg' });
+        const burl = URL.createObjectURL(blob);
+        const a = new Audio(burl);
+        currentAudio = a;
+        a.onended = a.onerror = () => { URL.revokeObjectURL(burl); currentAudio = null; resolve(); };
+        a.play().catch(resolve);
+      });
+    } catch {
+      // Fallback to browser voice if Speechify is unavailable
+      if (!window.speechSynthesis || !playAllActive) return;
+      await new Promise(resolve => {
+        const utt = new SpeechSynthesisUtterance(label);
+        utt.lang  = lang === 'zh' ? 'zh-CN' : 'en-US';
+        utt.rate  = 1.0;
+        utt.onend = utt.onerror = resolve;
+        window.speechSynthesis.speak(utt);
+      });
+    }
   }
 
   function stopPlayAll() {
